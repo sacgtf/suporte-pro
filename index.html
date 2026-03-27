@@ -391,6 +391,7 @@ INSERT INTO config_items(type,label,color,bg_color,is_default,position) VALUES
             <button class="admin-tab" onclick="switchTab('category')">📂 Categorias</button>
             <button class="admin-tab" onclick="switchTab('contact_reason')">📋 Motivos</button>
             <button class="admin-tab" onclick="switchTab('tag')">🏷️ Tags</button>
+            <button class="admin-tab" onclick="switchTab('integracoes')">🔗 Integrações</button>
           </div>
           <div class="admin-section active" id="tab-users">
             <div class="card">
@@ -450,6 +451,24 @@ INSERT INTO config_items(type,label,color,bg_color,is_default,position) VALUES
                 <div style="flex:1"><label class="field-label">Nova tag</label><input id="new-tag-label" class="field" placeholder="Ex: Cliente VIP"/></div>
                 <div><label class="field-label">Cor</label><input id="new-tag-color" type="color" class="field" style="padding:4px;height:38px;width:60px" value="#F7B731"/></div>
                 <button class="btn btn-primary" onclick="addItem('tag')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-integracoes">
+            <div class="card">
+              <div class="card-title">📧 Resposta Automática ao Cliente</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.7">Cole aqui a URL do fluxo <strong style="color:var(--text)">SuportePro - Resposta ao Cliente</strong> do Power Automate. Quando um agente responder um ticket, o cliente receberá o e-mail automaticamente.</p>
+              <div class="mb-14">
+                <label class="field-label">URL do Power Automate</label>
+                <input id="pa-webhook-url" class="field" placeholder="https://defaulte035c...powerautomate.com/..."/>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary" onclick="savePaUrl()">Salvar URL</button>
+                <span id="pa-url-status" style="font-size:12px;color:var(--green)"></span>
+              </div>
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:11px;color:var(--faint);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Status da integração</div>
+                <div id="pa-url-indicator" style="font-size:13px;color:var(--muted)">Carregando...</div>
               </div>
             </div>
           </div>
@@ -749,6 +768,24 @@ async function sendReply(){
   $('reply-input').value='';
   const msgs=await loadMessages(currentTicket.id);renderMessages(msgs);
   showToast('Resposta enviada!');loadAll();
+  // Envia e-mail ao cliente via Power Automate
+  const paUrl=localStorage.getItem('pa_webhook_url');
+  if(paUrl && currentTicket.email){
+    try{
+      await fetch(paUrl,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          ticket_id: currentTicket.id,
+          customer_email: currentTicket.email,
+          customer_name: currentTicket.customer,
+          agent_name: name,
+          message: text,
+          ticket_title: currentTicket.title
+        })
+      });
+    }catch(e){console.warn('Power Automate webhook error:',e);}
+  }
 }
 
 async function changeStatus(status){
@@ -800,6 +837,7 @@ function switchTab(tab){
   document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active',t.getAttribute('onclick').includes("'"+tab+"'")));
   document.querySelectorAll('.admin-section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+tab));
   if(tab==='users')loadUsers();
+  else if(tab==='integracoes')loadPaUrlStatus();
   else renderConfigList(tab);
 }
 
@@ -880,6 +918,23 @@ async function deleteItem(id,type){
 // ── WEBHOOK ──
 const exN=from=>{const m=from.match(/^([^<]+)</);return m?m[1].trim():from.replace(/<.*>/,'').trim()||'Cliente';};
 const exE=from=>{const m=from.match(/<(.+)>/);return m?m[1]:from.includes('@')?from.trim():from;};
+
+function savePaUrl(){
+  const url=$('pa-webhook-url').value.trim();
+  if(!url){showToast('Cole a URL do Power Automate.','error');return;}
+  localStorage.setItem('pa_webhook_url',url);
+  $('pa-url-status').textContent='✓ Salvo!';
+  $('pa-url-indicator').innerHTML='<span style="color:var(--green)">✅ Integração ativa — respostas enviadas por e-mail ao cliente.</span>';
+  setTimeout(()=>$('pa-url-status').textContent='',2000);
+  showToast('URL salva!');
+}
+function loadPaUrlStatus(){
+  const url=localStorage.getItem('pa_webhook_url');
+  const inp=$('pa-webhook-url'),ind=$('pa-url-indicator');
+  if(!inp||!ind)return;
+  if(url){inp.value=url;ind.innerHTML='<span style="color:var(--green)">✅ Integração ativa — respostas enviadas por e-mail ao cliente.</span>';}
+  else{ind.innerHTML='<span style="color:var(--orange)">⚠️ URL não configurada — respostas não serão enviadas por e-mail.</span>';}
+}
 
 function detPriority(s='',b=''){
   const t=(s+' '+b).toLowerCase();
