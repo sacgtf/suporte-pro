@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SuportePro v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Aplicar tema salvo antes do CSS pintar a página (evita flash)
+(function(){const t=localStorage.getItem('sp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* === TEMA ESCURO (padrão) === */
+:root{
+  --bg:#0A0C12;--surface:#10131E;--surface2:#14172A;--surface3:#1A1D2E;
+  --border:#1E2235;--border2:#2A2D3E;
+  --text:#E0E0F0;--text2:#B0B0C8;--muted:#6B6C85;--faint:#3A3B55;
+  --accent:#FF6600;--accent2:#FF8C00;
+  --green:#34C759;--orange:#FF9500;--red:#FF3B30;--yellow:#FFCC00;--blue:#7DD3FC;
+  --mov-logo-bg:#FF6600;
+}
+/* === TEMA CLARO === */
+[data-theme="light"]{
+  --bg:#F4F5F7;--surface:#FFFFFF;--surface2:#F0F1F4;--surface3:#E8E9EF;
+  --border:#E0E1E9;--border2:#D0D1DC;
+  --text:#1A1C2E;--text2:#3A3C55;--muted:#7B7D9A;--faint:#B0B2CC;
+  --accent:#FF6600;--accent2:#FF8C00;
+  --green:#28A745;--orange:#FF6600;--red:#DC3545;--yellow:#FFC107;--blue:#0D6EFD;
+  --mov-logo-bg:#FF6600;
+}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+input,select,textarea,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+select option{background:var(--surface)}
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:50}
+.logo{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:#fff;letter-spacing:-.5px}
+.logo-icon{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:14px}
+nav{display:flex;gap:3px}
+.nav-btn{padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:600;background:transparent;color:var(--muted);transition:all .15s;white-space:nowrap}
+.nav-btn.active,.nav-btn:hover{background:var(--accent);color:#fff}
+.nav-btn.admin-only{display:none}
+.header-right{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.online-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+/* NOTIFICATION BELL */
+.notif-btn{position:relative;background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;padding:4px}
+.notif-badge{position:absolute;top:0;right:0;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+/* BODY */
+.body-wrap{display:flex;flex:1;overflow:hidden}
+aside{width:200px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.side-label{font-size:9px;font-weight:700;color:var(--faint);letter-spacing:1.5px;text-transform:uppercase;padding:8px 8px 3px}
+.side-item{display:flex;align-items:center;justify-content:space-between;padding:6px 9px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);transition:all .15s}
+.side-item:hover,.side-item.active{background:var(--border);color:#fff}
+.side-count{font-size:10px;background:var(--border);padding:1px 6px;border-radius:10px;color:var(--muted)}
+.side-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-right:5px}
+main{flex:1;overflow-y:auto;padding:18px 22px}
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;border-left:3px solid var(--accent);cursor:pointer;transition:border-color .15s}
+.stat-card:hover{border-color:var(--accent2)}
+.stat-num{font-size:24px;font-weight:800;color:#fff;letter-spacing:-1px}
+.stat-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px;letter-spacing:.5px;text-transform:uppercase}
+.stat-sub{font-size:10px;color:var(--faint);margin-top:2px}
+/* TOOLBAR */
+.toolbar{display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.search-box{flex:1;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 11px;color:var(--text);font-size:12px;outline:none}
+.search-box:focus{border-color:var(--accent)}
+select.filter-sel{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 9px;color:var(--text);font-size:12px;outline:none;cursor:pointer}
+/* BUTTONS */
+.btn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#e55a00}
+.btn-secondary{background:var(--border);color:var(--text2)}.btn-secondary:hover{background:var(--border2);color:var(--text)}
+.btn-success{background:var(--green);color:#fff}.btn-success:hover{filter:brightness(1.1)}
+.btn-danger{background:rgba(255,59,48,.12);color:var(--red)}.btn-danger:hover{background:rgba(255,59,48,.22)}
+.btn-warning{background:rgba(255,149,0,.12);color:var(--orange)}.btn-warning:hover{background:rgba(255,149,0,.22)}
+.btn-internal{background:rgba(255,204,0,.1);color:var(--yellow)}.btn-internal:hover{background:rgba(255,204,0,.2)}
+.btn-sm{padding:3px 9px;font-size:11px;border-radius:6px}
+.btn-xs{padding:2px 7px;font-size:10px;border-radius:5px}
+/* TABLE */
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:8px 11px;font-size:10px;font-weight:700;color:var(--faint);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+tbody tr{cursor:pointer;transition:background .1s}tbody tr:hover{background:var(--surface2)}
+tbody td{padding:10px 11px;font-size:12px;color:var(--text2);border-bottom:1px solid var(--surface2);vertical-align:middle}
+.td-id{color:var(--accent);font-weight:700;white-space:nowrap}
+.td-title{color:var(--text);font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty-row td{text-align:center;padding:40px;color:var(--faint)}
+/* BADGES & TAGS */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700}
+.tag-rm{cursor:pointer}.tag-rm::after{content:'×';margin-left:2px;opacity:.7}
+/* SLA */
+.sla-ok{color:var(--green);font-size:11px;font-weight:700}
+.sla-warn{color:var(--orange);font-size:11px;font-weight:700}
+.sla-breach{color:var(--red);font-size:11px;font-weight:700;animation:pulse 1.5s infinite}
+.sla-bar{height:3px;border-radius:2px;background:var(--border);margin-top:3px;overflow:hidden}
+.sla-bar-fill{height:100%;border-radius:2px;transition:width .3s}
+/* AVATAR */
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex-shrink:0}
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.card-title{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px}
+/* FORM */
+.form-wrap{max-width:620px;margin:0 auto}
+label.field-label{display:block;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:4px}
+.field{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
+.field:focus{border-color:var(--accent)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end}
+.mb-12{margin-bottom:12px}.mt-12{margin-top:12px}
+.view-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.view-title{font-size:16px;font-weight:800;color:#fff}
+.section-title{font-size:10px;font-weight:700;color:var(--faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+/* DETAIL */
+.detail-wrap{max-width:900px;margin:0 auto}
+.detail-sidebar{width:240px;flex-shrink:0}
+.detail-main{flex:1;min-width:0}
+.detail-layout{display:flex;gap:14px}
+.detail-meta{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:10px}
+.detail-title-text{font-size:15px;font-weight:800;color:#fff;margin-bottom:5px;line-height:1.3}
+.detail-cust{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+/* SLA TIMER IN DETAIL */
+.sla-detail{background:var(--surface2);border-radius:8px;padding:10px 14px;margin-bottom:10px;border:1px solid var(--border)}
+.sla-detail-label{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.sla-detail-time{font-size:16px;font-weight:800}
+/* MESSAGES */
+.msg-tabs{display:flex;gap:4px;margin-bottom:10px}
+.msg-tab{padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:var(--muted);transition:all .15s}
+.msg-tab.active{background:var(--accent);color:#fff}
+.msg-tab.internal-tab.active{background:rgba(255,204,0,.15);color:var(--yellow);border:1px solid rgba(255,204,0,.3)}
+.msg-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;min-height:60px;max-height:400px;overflow-y:auto}
+.msg-row{display:flex;flex-direction:column}
+.msg-row.agent{align-items:flex-end}.msg-row.client{align-items:flex-start}.msg-row.internal{align-items:flex-start}
+.msg-meta{display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:10px;color:var(--faint)}
+.msg-row.agent .msg-meta{flex-direction:row-reverse}
+.msg-bubble{padding:9px 13px;max-width:75%;font-size:13px;line-height:1.6;color:var(--text2)}
+.msg-bubble.agent{background:rgba(255,102,0,.10);border:1px solid rgba(255,102,0,.20);border-radius:10px 10px 2px 10px}
+.msg-bubble.client{background:var(--surface2);border:1px solid var(--border);border-radius:10px 10px 10px 2px}
+.msg-bubble.internal{background:rgba(255,204,0,.07);border:1px solid rgba(255,204,0,.2);border-radius:10px 10px 10px 2px}
+.msg-internal-label{font-size:9px;font-weight:700;color:var(--yellow);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+/* REPLY BOX */
+.reply-section{background:var(--bg);border-radius:8px;border:1px solid var(--border);overflow:hidden}
+.reply-toolbar{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap}
+.reply-type-btn{padding:4px 10px;border-radius:5px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:var(--muted)}
+.reply-type-btn.active{background:var(--accent);color:#fff}
+.reply-type-btn.internal-active{background:rgba(255,204,0,.15);color:var(--yellow)}
+.reply-textarea{width:100%;background:transparent;border:none;color:var(--text);font-size:13px;outline:none;resize:none;min-height:80px;padding:10px 12px}
+.reply-footer{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-top:1px solid var(--border);flex-wrap:wrap;gap:6px}
+.reply-footer-left{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cc-input{background:transparent;border:none;color:var(--text2);font-size:11px;outline:none;min-width:100px}
+/* AUDIT LOG */
+.audit-item{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--surface2);font-size:11px}
+.audit-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:3px}
+.audit-text{color:var(--text2);flex:1;line-height:1.5}
+.audit-time{color:var(--faint);flex-shrink:0}
+/* CANNED RESPONSES */
+.canned-list{max-height:200px;overflow-y:auto}
+.canned-item{padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--text2);transition:background .1s;border:1px solid transparent}
+.canned-item:hover{background:var(--surface2);border-color:var(--border)}
+.canned-item-title{font-weight:700;color:var(--text);margin-bottom:2px}
+.canned-item-preview{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* MACRO DROPDOWN */
+.macro-popup{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;z-index:50;width:260px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+/* ADMIN */
+.admin-wrap{max-width:920px;margin:0 auto}
+.admin-tabs{display:flex;gap:3px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0;overflow-x:auto}
+.admin-tab{padding:7px 14px;border-radius:7px 7px 0 0;border:none;cursor:pointer;font-size:11px;font-weight:600;background:transparent;color:var(--muted);transition:all .15s;margin-bottom:-1px;white-space:nowrap}
+.admin-tab.active{background:var(--surface);color:#fff;border:1px solid var(--border);border-bottom-color:var(--surface)}
+.admin-section{display:none}.admin-section.active{display:block}
+.config-row{display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--surface2);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)}
+.config-row-label{flex:1;font-size:13px;color:var(--text)}
+.config-row-meta{font-size:11px;color:var(--muted);margin-right:6px}
+.color-pill{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.add-row{display:flex;gap:7px;margin-top:10px;align-items:flex-end;flex-wrap:wrap}
+/* USER */
+.user-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)}
+.user-info{flex:1}.user-name{font-size:13px;font-weight:600;color:var(--text)}.user-email{font-size:11px;color:var(--muted)}
+.user-role{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.role-admin{background:rgba(255,102,0,.15);color:var(--accent)}.role-agent{background:rgba(52,199,89,.15);color:var(--green)}
+/* OVERLAYS */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center}
+.overlay-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:36px;max-width:500px;width:90%}
+.overlay-title{font-size:20px;font-weight:800;color:#fff;margin-bottom:7px}
+.overlay-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7}
+.overlay-err{font-size:12px;color:var(--red);margin-top:7px;min-height:16px}
+.setup-step{display:flex;gap:10px;margin-bottom:14px}
+.setup-step-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.setup-step-text{font-size:12px;color:var(--muted);line-height:1.7}.setup-step-text strong{color:var(--text)}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:10px;color:#a78bfa;overflow-x:auto;line-height:1.7;white-space:pre;margin-bottom:7px;max-height:300px;overflow-y:auto}
+/* MODALS */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:15px;font-weight:800;color:#fff;margin-bottom:14px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+/* DASHBOARD */
+.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+.dash-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+.dash-card-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--surface2);font-size:12px}
+.metric-row:last-child{border:none}
+.metric-label{color:var(--text2)}
+.metric-val{font-weight:700;color:#fff}
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--accent);color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:999;animation:fadeUp .25s ease;pointer-events:none;display:none;max-width:320px}
+#toast.error{background:var(--red)}
+#toast.warn{background:var(--orange)}
+#toast.success{background:var(--green)}
+/* NOTIF PANEL */
+.notif-panel{position:fixed;top:58px;right:16px;width:300px;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);display:none}
+.notif-panel.open{display:block}
+.notif-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)}
+.notif-item{padding:10px 14px;border-bottom:1px solid var(--surface2);cursor:pointer;font-size:12px;line-height:1.5;transition:background .1s}
+.notif-item:hover{background:var(--surface2)}
+.notif-item-title{font-weight:700;color:var(--text);margin-bottom:2px}
+.notif-item-sub{color:var(--muted)}
+/* COLLISION */
+.collision-bar{background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.25);border-radius:7px;padding:6px 12px;font-size:11px;color:var(--orange);margin-bottom:10px;display:none}
+/* LOADING */
+.loading{display:flex;align-items:center;justify-content:center;padding:36px;color:var(--faint);font-size:13px;gap:9px}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+/* WEBHOOK */
+.flow-steps{display:flex;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:6px}
+.flow-step{display:flex;flex-direction:column;align-items:center;flex:1;min-width:80px}
+.flow-step .icon{font-size:20px;margin-bottom:4px}
+.flow-step .desc{font-size:10px;color:var(--muted);text-align:center;line-height:1.4}
+.flow-arrow{font-size:16px;color:var(--faint);padding-bottom:18px}
+.code-block-blue{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:var(--blue);overflow-x:auto;line-height:1.7;white-space:pre}
+.copy-row{display:flex;gap:7px;align-items:stretch}.copy-row .code-block-blue{flex:1;padding:8px 11px}
+.log-item{padding:7px 11px;border-radius:7px;margin-bottom:5px;font-size:11px;display:flex;gap:9px;align-items:center}
+.log-ok{background:rgba(52,199,89,.06);border:1px solid rgba(52,199,89,.15)}
+.log-err{background:rgba(255,59,48,.06);border:1px solid rgba(255,59,48,.15)}
+.log-subject{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.info-box{background:var(--bg);border-radius:8px;padding:9px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.8}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:768px){aside{display:none}.stats-grid{grid-template-columns:repeat(2,1fr)}.form-grid,.form-grid-3{grid-template-columns:1fr}.detail-layout{flex-direction:column}.detail-sidebar{width:100%}}
+/* Tema claro — ajustes específicos */
+[data-theme="light"] select option{background:#fff;color:#1A1C2E}
+[data-theme="light"] .field{background:#fff;border-color:var(--border)}
+[data-theme="light"] .search-box{background:#fff}
+[data-theme="light"] select.filter-sel{background:#fff}
+[data-theme="light"] .reply-textarea{color:#1A1C2E}
+[data-theme="light"] .msg-bubble.client{background:#F0F1F4;border-color:#E0E1E9}
+[data-theme="light"] .msg-bubble.agent{background:rgba(255,102,0,.08);border-color:rgba(255,102,0,.18)}
+[data-theme="light"] .overlay{background:rgba(244,245,247,.97)}
+[data-theme="light"] .modal-bg{background:rgba(0,0,0,.35)}
+[data-theme="light"] .macro-popup{box-shadow:0 8px 24px rgba(0,0,0,.12)}
+[data-theme="light"] table thead th{color:#7B7D9A}
+[data-theme="light"] .td-id{color:#FF6600}
+[data-theme="light"] .code-block{background:#F8F9FA;color:#CC4400}
+[data-theme="light"] .code-block-blue{background:#F0F5FF;color:#0D6EFD}
+[data-theme="light"] .notif-panel{box-shadow:0 8px 24px rgba(0,0,0,.12)}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div class="overlay" id="setup-screen">
+  <div class="overlay-card" style="max-width:540px">
+    <div class="logo" style="margin-bottom:18px">
+      <div class="logo-icon" style="background:#FF6600;border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center">
+        <span style="color:#fff;font-size:18px;font-weight:900">m</span>
+      </div>
+      <span style="color:#FF6600;font-weight:900;font-size:17px">SuportePro</span>
+      <span style="color:var(--muted);font-size:11px">| Movida GTF</span>
+    </div>
+    <div class="overlay-title">Configuracao inicial</div>
+    <div class="overlay-sub">Conecte ao Supabase. Feito uma vez, salvo para sempre.</div>
+    <div style="margin-bottom:18px">
+      <div class="setup-step"><div class="setup-step-num">1</div><div class="setup-step-text">Acesse <a href="https://supabase.com" target="_blank" style="color:var(--accent)">supabase.com</a> e crie um projeto</div></div>
+      <div class="setup-step"><div class="setup-step-num">2</div><div class="setup-step-text">Execute o SQL no <strong>SQL Editor</strong>: <a href="#" onclick="toggleSQL();return false" style="color:var(--accent);font-size:11px">mostrar SQL</a></div></div>
+      <div id="sql-block" style="display:none;margin:8px 0">
+        <div class="code-block" id="sql-content">-- Execute no SQL Editor do Supabase
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID REFERENCES auth.users PRIMARY KEY,
+  name TEXT, role TEXT DEFAULT 'agent',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS config_items (
+  id BIGSERIAL PRIMARY KEY, type TEXT NOT NULL,
+  label TEXT NOT NULL, color TEXT DEFAULT '#6B6C85',
+  bg_color TEXT DEFAULT '#1E2235', is_default BOOLEAN DEFAULT FALSE,
+  position INT DEFAULT 0, active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS sla_configs (
+  id BIGSERIAL PRIMARY KEY, priority TEXT UNIQUE NOT NULL,
+  response_hours INT DEFAULT 4, resolution_hours INT DEFAULT 24,
+  active BOOLEAN DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS canned_responses (
+  id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL,
+  content TEXT NOT NULL, category TEXT DEFAULT 'Geral',
+  created_by UUID REFERENCES profiles(id),
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS tickets (
+  id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL,
+  customer TEXT NOT NULL, email TEXT NOT NULL,
+  priority TEXT DEFAULT 'Media', status TEXT DEFAULT 'Aberto',
+  sub_status TEXT, category TEXT DEFAULT 'Geral',
+  source TEXT DEFAULT 'manual',
+  assigned_to UUID REFERENCES profiles(id),
+  contact_reason TEXT, tags TEXT[] DEFAULT '{}',
+  sla_response_due TIMESTAMPTZ, sla_resolution_due TIMESTAMPTZ,
+  sla_response_met BOOLEAN, sla_resolution_met BOOLEAN,
+  first_response_at TIMESTAMPTZ, resolved_at TIMESTAMPTZ,
+  deleted BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGSERIAL PRIMARY KEY,
+  ticket_id BIGINT REFERENCES tickets(id) ON DELETE CASCADE,
+  author TEXT NOT NULL, content TEXT NOT NULL,
+  is_agent BOOLEAN DEFAULT FALSE, is_internal BOOLEAN DEFAULT FALSE,
+  cc_emails TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  ticket_id BIGINT REFERENCES tickets(id) ON DELETE CASCADE,
+  agent_name TEXT, action TEXT, old_value TEXT, new_value TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id),
+  ticket_id BIGINT REFERENCES tickets(id) ON DELETE CASCADE,
+  message TEXT, read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- RLS
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE config_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sla_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE canned_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "all" ON profiles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON config_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON sla_configs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON canned_responses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON tickets FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON audit_log FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "all" ON notifications FOR ALL USING (true) WITH CHECK (true);
+-- Trigger perfil
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE OR REPLACE FUNCTION handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN INSERT INTO public.profiles(id,name,role) VALUES(NEW.id,NEW.email,'agent') ON CONFLICT(id) DO NOTHING; RETURN NEW; END;$$;
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE PROCEDURE handle_new_user();
+-- Dados padrao
+INSERT INTO config_items(type,label,color,bg_color,is_default,position) VALUES
+('status','Aberto','#5E6AD2','#5E6AD215',true,1),
+('status','Em Andamento','#FF9500','#FF950015',true,2),
+('status','Aguardando Cliente','#FFCC00','#FFCC0015',true,3),
+('status','Pendente','#FF6B6B','#FF6B6B15',true,4),
+('status','Resolvido','#34C759','#34C75915',true,5),
+('status','Fechado','#8E8E93','#8E8E9315',true,6),
+('priority','Urgente','#FF3B30','#FF3B3015',true,1),
+('priority','Alta','#FF9500','#FF950015',true,2),
+('priority','Media','#FFCC00','#FFCC0015',true,3),
+('priority','Baixa','#34C759','#34C75915',true,4),
+('category','Entrega','#6B6C85','#1E2235',true,1),
+('category','Tecnico','#6B6C85','#1E2235',true,2),
+('category','Fiscal','#6B6C85','#1E2235',true,3),
+('category','Devolucao','#6B6C85','#1E2235',true,4),
+('category','Financeiro','#6B6C85','#1E2235',true,5),
+('category','Geral','#6B6C85','#1E2235',true,6),
+('contact_reason','Duvida sobre produto','#45B7D1','#45B7D115',true,1),
+('contact_reason','Reclamacao','#FF6B6B','#FF6B6B15',true,2),
+('contact_reason','Reembolso','#F7B731','#F7B73115',true,3),
+('contact_reason','Suporte tecnico','#5E6AD2','#5E6AD215',true,4),
+('contact_reason','Informacao','#96CEB4','#96CEB415',true,5),
+('tag','VIP','#F7B731','#F7B73120',true,1),
+('tag','Reincidente','#FF6B6B','#FF6B6B20',true,2),
+('tag','Urgente','#FF3B30','#FF3B3020',true,3),
+('tag','Aguardando NF','#45B7D1','#45B7D120',true,4),
+('sub_status','Aguardando retorno do cliente','#FFCC00','#FFCC0015',true,1),
+('sub_status','Aguardando area interna','#FF9500','#FF950015',true,2),
+('sub_status','Aguardando fornecedor','#FF6B6B','#FF6B6B15',true,3),
+('sub_status','Aguardando aprovacao','#8B5CF6','#8B5CF615',true,4),
+('sub_status','Em analise','#45B7D1','#45B7D115',true,5);
+INSERT INTO sla_configs(priority,response_hours,resolution_hours) VALUES
+('Urgente',1,4),('Alta',2,8),('Media',4,24),('Baixa',8,48);
+INSERT INTO canned_responses(title,content,category) VALUES
+('Saudacao inicial','Ola! Obrigado por entrar em contato com a Central de Atendimento Movida. Vou verificar seu caso e retorno em breve.','Abertura'),
+('Aguardando informacoes','Para dar continuidade ao seu atendimento, preciso das seguintes informacoes: [descreva aqui]. Por favor, envie assim que possivel.','Pendente'),
+('Solucao enviada','Conforme verificado, o problema foi solucionado. Segue abaixo o detalhamento: [descreva aqui]. Caso tenha mais duvidas, estamos a disposicao.','Resolucao'),
+('Encerramento','Ficamos felizes em ter ajudado! Seu chamado foi encerrado. Qualquer nova duvida, e so entrar em contato. Tenha um otimo dia!','Encerramento');</div>
+        <button class="btn btn-secondary btn-xs" onclick="copySQL()" style="margin-top:4px">Copiar SQL</button>
+      </div>
+      <div class="setup-step"><div class="setup-step-num">3</div><div class="setup-step-text">Vá em <strong>Settings → API</strong> e cole abaixo</div></div>
+    </div>
+    <div class="mb-12"><label class="field-label">Project URL</label><input id="setup-url" class="field" placeholder="https://xxxx.supabase.co"/></div>
+    <div class="mb-12"><label class="field-label">Anon Public Key</label><input id="setup-key" class="field" placeholder="eyJhbGci..."/></div>
+    <div id="setup-err" class="overlay-err"></div>
+    <button class="btn btn-primary" style="width:100%;padding:10px;margin-top:6px;font-size:13px" onclick="connectSupabase()">Conectar e entrar</button>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="overlay" id="login-screen" style="display:none">
+  <div class="overlay-card" style="max-width:380px">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;background:#FF6600;border-radius:12px;width:52px;height:52px;margin-bottom:10px">
+        <span style="color:#fff;font-size:28px;font-weight:900;line-height:1">m</span>
+      </div>
+      <div style="font-size:18px;font-weight:900;color:#FF6600;letter-spacing:-.5px">SuportePro</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">Central de Atendimento · Movida GTF</div>
+    </div>
+    <div class="overlay-title" style="font-size:15px">Entrar</div>
+    <div class="overlay-sub">Acesse com sua conta de agente.</div>
+    <div class="mb-12"><label class="field-label">E-mail</label><input id="login-email" class="field" type="email" placeholder="seu@movida.com.br" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <div class="mb-12"><label class="field-label">Senha</label><input id="login-password" class="field" type="password" placeholder="senha" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <div id="login-err" class="overlay-err"></div>
+    <button class="btn btn-primary" style="width:100%;padding:10px;margin-top:6px;font-size:13px;background:#FF6600" onclick="doLogin()">Entrar</button>
+    <p style="font-size:11px;color:var(--faint);margin-top:10px;text-align:center">Sem acesso? Solicite ao administrador.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div class="logo">
+      <div class="logo-icon" style="background:var(--mov-logo-bg);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:4px">
+        <svg viewBox="0 0 100 60" width="26" height="16" fill="white" xmlns="http://www.w3.org/2000/svg"><text x="0" y="48" font-size="52" font-family="Arial Black,sans-serif" font-weight="900">m</text></svg>
+      </div>
+      <span style="color:var(--accent);font-weight:900;font-size:16px;letter-spacing:-.5px">SuportePro</span>
+      <span style="color:var(--muted);font-size:10px;font-weight:500;margin-left:2px">| Movida GTF</span>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-view="list" onclick="setView('list')">Dashboard</button>
+      <button class="nav-btn" data-view="reports" onclick="setView('reports')">📊 Relatórios</button>
+      <button class="nav-btn" data-view="new" onclick="setView('new')">+ Novo</button>
+      <button class="nav-btn admin-only" data-view="admin" onclick="setView('admin')">⚙️ Admin</button>
+      <button class="nav-btn" data-view="webhook" onclick="setView('webhook')">⚡ Outlook</button>
+    </nav>
+    <div class="header-right">
+      <div class="online-dot"></div>
+      <span id="header-username">...</span>
+      <span id="header-role-badge"></span>
+      <button class="notif-btn" onclick="toggleNotifPanel()" id="notif-btn">🔔<span class="notif-badge" id="notif-count" style="display:none">0</span></button>
+      <button class="btn btn-secondary btn-sm" onclick="toggleTheme()" id="theme-toggle" title="Alternar tema" style="padding:4px 8px;font-size:14px">🌙</button>
+      <div class="avatar" id="header-avatar" style="width:26px;height:26px;font-size:10px;background:var(--accent)">?</div>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION PANEL -->
+  <div class="notif-panel" id="notif-panel">
+    <div class="notif-header">
+      <span style="font-size:13px;font-weight:700;color:#fff">Notificações</span>
+      <button class="btn btn-xs btn-secondary" onclick="markAllRead()">Marcar lidas</button>
+    </div>
+    <div id="notif-list" style="max-height:300px;overflow-y:auto">
+      <div style="padding:20px;text-align:center;font-size:12px;color:var(--faint)">Nenhuma notificação.</div>
+    </div>
+  </div>
+
+  <div class="body-wrap">
+    <aside id="sidebar">
+      <div class="side-label">Status</div>
+      <div id="sidebar-status-items"></div>
+      <div class="side-label">Prioridade</div>
+      <div id="sidebar-priority-items"></div>
+      <div class="side-label">Atribuído</div>
+      <div class="side-item active" data-sf-a="todos" onclick="setAssignedFilter('todos')"><span>Todos</span></div>
+      <div class="side-item" data-sf-a="me" onclick="setAssignedFilter('me')"><span>Meus tickets</span></div>
+      <div class="side-item" data-sf-a="unassigned" onclick="setAssignedFilter('unassigned')"><span>Sem responsável</span></div>
+      <div class="side-label">Origem</div>
+      <div class="side-item active" data-sf="todos" onclick="setSourceFilter('todos')"><span>Todas</span></div>
+      <div class="side-item" data-sf="email" onclick="setSourceFilter('email')"><span>📧 E-mail</span></div>
+      <div class="side-item" data-sf="manual" onclick="setSourceFilter('manual')"><span>✍️ Manual</span></div>
+    </aside>
+
+    <main id="main-content">
+
+      <!-- LIST -->
+      <div id="view-list">
+        <div class="stats-grid" id="stats-grid"></div>
+        <div class="toolbar">
+          <input type="text" class="search-box" id="search-input" placeholder="🔍  Buscar ticket ou cliente..." oninput="renderList()"/>
+          <select class="filter-sel" id="filter-status-sel" onchange="setStatusFilter(this.value)"><option value="todos">Todos Status</option></select>
+          <select class="filter-sel" id="filter-agent-sel" onchange="setAgentFilter(this.value)"><option value="todos">Todos Agentes</option></select>
+          <button class="btn btn-primary" onclick="setView('new')">+ Novo</button>
+          <button class="btn btn-secondary" onclick="loadAll()" title="Atualizar">↻</button>
+        </div>
+        <table>
+          <thead><tr><th>#ID</th><th>Título</th><th>Cliente</th><th>Responsável</th><th>Categoria</th><th>Tags</th><th>Prioridade</th><th>Status</th><th>SLA</th><th>Atualizado</th><th></th></tr></thead>
+          <tbody id="ticket-tbody"><tr class="empty-row"><td colspan="11"><div class="loading"><div class="spinner"></div> Carregando...</div></td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- REPORTS -->
+      <div id="view-reports" style="display:none">
+        <div class="view-header"><span class="view-title">📊 Relatórios</span>
+          <select class="filter-sel" id="report-period" onchange="loadReports()">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="loadReports()">↻ Atualizar</button>
+        </div>
+        <div class="stats-grid" id="report-stats" style="grid-template-columns:repeat(4,1fr)"></div>
+        <div class="dash-grid">
+          <div class="dash-card"><div class="dash-card-title">Tickets por Status</div><div id="report-by-status"></div></div>
+          <div class="dash-card"><div class="dash-card-title">Tickets por Prioridade</div><div id="report-by-priority"></div></div>
+          <div class="dash-card"><div class="dash-card-title">Desempenho por Agente</div><div id="report-by-agent"></div></div>
+          <div class="dash-card"><div class="dash-card-title">SLA — Cumprimento</div><div id="report-sla"></div></div>
+        </div>
+        <div class="dash-card"><div class="dash-card-title">Motivos de Contato mais frequentes</div><div id="report-reasons"></div></div>
+      </div>
+
+      <!-- DETAIL -->
+      <div id="view-detail" style="display:none">
+        <div class="detail-wrap">
+          <div class="view-header">
+            <button class="btn btn-secondary btn-sm" onclick="setView('list')">← Voltar</button>
+            <span class="view-title" id="detail-id-title">Ticket #</span>
+            <span id="detail-source-badge"></span>
+            <span id="detail-sla-badge"></span>
+            <div style="flex:1"></div>
+            <button class="btn btn-danger btn-sm" onclick="deleteTicket()">🗑 Excluir</button>
+            <button class="btn btn-secondary btn-sm" onclick="mergeTicketPrompt()">🔗 Mesclar</button>
+          </div>
+          <div id="collision-bar" class="collision-bar">👁 <span id="collision-text"></span></div>
+          <div class="detail-layout">
+            <div class="detail-main">
+              <div class="card">
+                <div class="detail-meta">
+                  <div style="flex:1;min-width:0">
+                    <div class="detail-title-text" id="detail-title"></div>
+                    <div class="detail-cust">
+                      <div class="avatar" id="detail-avatar" style="width:18px;height:18px;font-size:7px"></div>
+                      <span id="detail-customer"></span>
+                      <span style="color:var(--faint)">·</span>
+                      <span id="detail-email" style="color:var(--faint)"></span>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0" id="detail-priority-badge"></div>
+                </div>
+                <!-- Tags -->
+                <div style="margin-bottom:8px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+                  <span style="font-size:11px;color:var(--faint)">Tags:</span>
+                  <div id="detail-tags-display" style="display:flex;gap:3px;flex-wrap:wrap"></div>
+                  <select id="add-tag-sel" class="field" style="width:auto;padding:2px 7px;font-size:11px" onchange="addTag(this.value);this.value=''"><option value="">+ tag</option></select>
+                </div>
+                <!-- Status -->
+                <div class="status-row">
+                  <span style="font-size:11px;color:var(--faint)">Status:</span>
+                  <div id="status-buttons" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+                </div>
+                <!-- Sub-status e Motivo lado a lado -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+                  <div>
+                    <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Detalhe</div>
+                    <select id="sub-status-sel" class="field" style="width:100%;padding:3px 9px;font-size:11px" onchange="saveSubStatus(this.value)"><option value="">Selecione...</option></select>
+                    <span id="sub-status-display" style="font-size:10px;color:var(--muted);display:block;margin-top:3px"></span>
+                  </div>
+                  <div>
+                    <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Motivo</div>
+                    <select id="contact-reason-sel" class="field" style="width:100%;padding:3px 9px;font-size:11px" onchange="saveReason(this.value)"><option value="">Selecione...</option></select>
+                    <span id="contact-reason-display" style="font-size:10px;color:var(--muted);display:block;margin-top:3px"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MESSAGES -->
+              <div class="card">
+                <div class="msg-tabs">
+                  <button class="msg-tab active" onclick="switchMsgTab('all')">Todas</button>
+                  <button class="msg-tab" onclick="switchMsgTab('client')">Cliente</button>
+                  <button class="msg-tab internal-tab" onclick="switchMsgTab('internal')">🔒 Notas Internas</button>
+                  <button class="msg-tab" onclick="switchMsgTab('audit')">📋 Auditoria</button>
+                </div>
+                <div class="msg-list" id="msg-list"></div>
+                <!-- REPLY BOX -->
+                <div class="reply-section">
+                  <div class="reply-toolbar">
+                    <button class="reply-type-btn active" id="rtype-public" onclick="setReplyType('public')">Resposta ao Cliente</button>
+                    <button class="reply-type-btn" id="rtype-internal" onclick="setReplyType('internal')">🔒 Nota Interna</button>
+                    <div style="flex:1"></div>
+                    <div style="position:relative">
+                      <button class="btn btn-secondary btn-xs" onclick="toggleCannedPopup()">📝 Resp. Prontas</button>
+                      <div class="macro-popup" id="canned-popup" style="display:none;top:28px;right:0">
+                        <div style="font-size:10px;color:var(--muted);padding:4px 6px;margin-bottom:4px">Clique para inserir</div>
+                        <div class="canned-list" id="canned-popup-list"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea class="reply-textarea" id="reply-input" placeholder="Digite sua resposta... (Ctrl+Enter para enviar)" onkeydown="if(event.ctrlKey&&event.key==='Enter')sendReply()"></textarea>
+                  <div class="reply-footer">
+                    <div class="reply-footer-left">
+                      <span style="font-size:11px;color:var(--faint)">CC:</span>
+                      <input class="cc-input" id="cc-input" placeholder="email@exemplo.com, ..."/>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="sendReply()" id="send-btn">Enviar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SIDEBAR -->
+            <div class="detail-sidebar">
+              <!-- SLA -->
+              <div class="card">
+                <div class="card-title">⏱ SLA</div>
+                <div id="sla-detail-content"></div>
+              </div>
+              <!-- PROPERTIES -->
+              <div class="card">
+                <div class="card-title">Propriedades</div>
+                <div class="mb-12">
+                  <label class="field-label">Responsável</label>
+                  <select id="assigned-to-sel" class="field" style="font-size:12px" onchange="saveAssigned(this.value)"><option value="">Sem responsável</option></select>
+                </div>
+                <div class="mb-12">
+                  <label class="field-label">Prioridade</label>
+                  <select id="priority-sel" class="field" style="font-size:12px" onchange="savePriority(this.value)"></select>
+                </div>
+                <div>
+                  <label class="field-label">Categoria</label>
+                  <select id="category-sel" class="field" style="font-size:12px" onchange="saveCategory(this.value)"></select>
+                </div>
+              </div>
+              <!-- INFO -->
+              <div class="card">
+                <div class="card-title">Informações</div>
+                <div style="font-size:11px;color:var(--muted);line-height:2">
+                  <div><span style="color:var(--faint)">Criado:</span> <span id="detail-created"></span></div>
+                  <div><span style="color:var(--faint)">Atualizado:</span> <span id="detail-updated"></span></div>
+                  <div><span style="color:var(--faint)">Origem:</span> <span id="detail-source"></span></div>
+                  <div><span style="color:var(--faint)">1a Resposta:</span> <span id="detail-first-response"></span></div>
+                  <div><span style="color:var(--faint)">Resolvido:</span> <span id="detail-resolved"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW TICKET -->
+      <div id="view-new" style="display:none">
+        <div class="form-wrap">
+          <div class="view-header">
+            <button class="btn btn-secondary btn-sm" onclick="setView('list')">← Voltar</button>
+            <span class="view-title">Novo Ticket</span>
+          </div>
+          <div class="card"><div class="card-title">Cliente</div>
+            <div class="form-grid">
+              <div><label class="field-label">Nome *</label><input id="nf-customer" class="field" placeholder="Joao Silva"/></div>
+              <div><label class="field-label">E-mail *</label><input id="nf-email" class="field" type="email" placeholder="joao@email.com"/></div>
+            </div>
+          </div>
+          <div class="card"><div class="card-title">Ticket</div>
+            <div class="mb-12"><label class="field-label">Titulo *</label><input id="nf-title" class="field" placeholder="Descreva o problema..."/></div>
+            <div class="form-grid-3">
+              <div><label class="field-label">Prioridade</label><select id="nf-priority" class="field"></select></div>
+              <div><label class="field-label">Categoria</label><select id="nf-category" class="field"></select></div>
+              <div><label class="field-label">Responsavel</label><select id="nf-assigned" class="field"><option value="">Sem responsavel</option></select></div>
+            </div>
+            <div class="mt-12"><label class="field-label">Descricao inicial</label><textarea id="nf-description" class="field" style="resize:vertical;min-height:80px" placeholder="Detalhes..."></textarea></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary btn-sm" onclick="setView('list')">Cancelar</button>
+            <button class="btn btn-primary" onclick="createTicket()">Criar Ticket</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div id="view-admin" style="display:none">
+        <div class="admin-wrap">
+          <div class="view-header"><span class="view-title">Painel Admin</span></div>
+          <div class="admin-tabs">
+            <button class="admin-tab active" onclick="switchTab('users')">Usuarios</button>
+            <button class="admin-tab" onclick="switchTab('status')">Status</button>
+            <button class="admin-tab" onclick="switchTab('priority')">Prioridades</button>
+            <button class="admin-tab" onclick="switchTab('category')">Categorias</button>
+            <button class="admin-tab" onclick="switchTab('sub_status')">Sub-Status</button>
+            <button class="admin-tab" onclick="switchTab('contact_reason')">Motivos</button>
+            <button class="admin-tab" onclick="switchTab('tag')">Tags</button>
+            <button class="admin-tab" onclick="switchTab('sla')">SLA</button>
+            <button class="admin-tab" onclick="switchTab('canned')">Resp. Prontas</button>
+            <button class="admin-tab" onclick="switchTab('integracoes')">Integracoes</button>
+          </div>
+          <div class="admin-section active" id="tab-users">
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                <div class="card-title" style="margin:0">Usuarios com acesso</div>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-user')">+ Criar usuario</button>
+              </div>
+              <div id="users-list"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-status">
+            <div class="card"><div class="card-title">Status de Ticket</div>
+              <div id="list-status"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Novo status</label><input id="new-status-label" class="field" placeholder="Ex: Em Validacao"/></div>
+                <div><label class="field-label">Cor</label><input id="new-status-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#5E6AD2"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('status')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-priority">
+            <div class="card"><div class="card-title">Prioridades</div>
+              <div id="list-priority"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Nova prioridade</label><input id="new-priority-label" class="field" placeholder="Ex: Critico"/></div>
+                <div><label class="field-label">Cor</label><input id="new-priority-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#FF3B30"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('priority')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-category">
+            <div class="card"><div class="card-title">Categorias</div>
+              <div id="list-category"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Nova categoria</label><input id="new-category-label" class="field" placeholder="Ex: Juridico"/></div>
+                <div><label class="field-label">Cor</label><input id="new-category-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#6B6C85"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('category')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-sub_status">
+            <div class="card"><div class="card-title">Sub-Status de Pendencia</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Detalha o motivo de um ticket estar pendente (ex: aguardando area interna, aguardando fornecedor).</p>
+              <div id="list-sub_status"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Novo sub-status</label><input id="new-sub_status-label" class="field" placeholder="Ex: Aguardando juridico"/></div>
+                <div><label class="field-label">Cor</label><input id="new-sub_status-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#FF9500"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('sub_status')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-contact_reason">
+            <div class="card"><div class="card-title">Motivos de Contato</div>
+              <div id="list-contact_reason"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Novo motivo</label><input id="new-contact_reason-label" class="field" placeholder="Ex: Cancelamento"/></div>
+                <div><label class="field-label">Cor</label><input id="new-contact_reason-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#45B7D1"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('contact_reason')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-tag">
+            <div class="card"><div class="card-title">Tags</div>
+              <div id="list-tag"></div>
+              <div class="add-row">
+                <div style="flex:1"><label class="field-label">Nova tag</label><input id="new-tag-label" class="field" placeholder="Ex: Cliente VIP"/></div>
+                <div><label class="field-label">Cor</label><input id="new-tag-color" type="color" class="field" style="padding:3px;height:36px;width:56px" value="#F7B731"/></div>
+                <button class="btn btn-primary btn-sm" onclick="addItem('tag')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-sla">
+            <div class="card"><div class="card-title">Configuracao de SLA por Prioridade</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Define o prazo de primeira resposta e resolucao para cada nivel de prioridade. O timer comeca quando o ticket e criado.</p>
+              <div id="sla-config-list"></div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-canned">
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                <div class="card-title" style="margin:0">Respostas Prontas</div>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-canned')">+ Nova</button>
+              </div>
+              <div id="canned-list-admin"></div>
+            </div>
+          </div>
+          <div class="admin-section" id="tab-integracoes">
+            <div class="card">
+              <div class="card-title">Resposta Automatica ao Cliente</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">URL do fluxo <strong style="color:var(--text)">SuportePro - Resposta ao Cliente</strong> no Power Automate.</p>
+              <div class="mb-12"><label class="field-label">URL do Power Automate</label><input id="pa-webhook-url" class="field" placeholder="https://defaulte035c...powerautomate.com/..."/></div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" onclick="savePaUrl()">Salvar URL</button>
+                <span id="pa-url-status" style="font-size:12px;color:var(--green)"></span>
+              </div>
+              <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+                <div id="pa-url-indicator" style="font-size:13px;color:var(--muted)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WEBHOOK -->
+      <div id="view-webhook" style="display:none">
+        <div style="max-width:720px;margin:0 auto">
+          <div class="view-header">
+            <button class="btn btn-secondary btn-sm" onclick="setView('list')">← Voltar</button>
+            <span class="view-title">Integracao Outlook</span>
+          </div>
+          <div class="card"><div class="card-title">Como funciona</div>
+            <div class="flow-steps">
+              <div class="flow-step"><div class="icon">📧</div><div class="desc">E-mail chega no Outlook</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step"><div class="icon">⚡</div><div class="desc">Power Automate</div></div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-step"><div class="icon">🎯</div><div class="desc">Ticket criado</div></div>
+            </div>
+            <div class="info-box">Prioridade e categoria detectadas automaticamente pelo conteudo do e-mail. SLA iniciado no momento da criacao.</div>
+          </div>
+          <div class="card"><div class="card-title">Body JSON para o Power Automate</div>
+            <div class="copy-row">
+              <div class="code-block-blue">{"titulo": "@{triggerOutputs()?['body/subject']}",
+"cliente": "@{triggerOutputs()?['body/from']}",
+"mensagem": "@{triggerOutputs()?['body/body/content']}"}</div>
+              <button class="btn btn-secondary btn-sm" onclick="copyText('json')">Copiar</button>
+            </div>
+          </div>
+          <div class="card" style="border-left:3px solid var(--green)"><div class="card-title" style="color:var(--green)">Simulador</div>
+            <div class="mb-12"><label class="field-label">De</label><input id="sim-from" class="field" value="Joao Silva &lt;joao@empresa.com&gt;"/></div>
+            <div class="mb-12"><label class="field-label">Assunto</label><input id="sim-subject" class="field" value="Problema com meu pedido urgente"/></div>
+            <div class="mb-12"><label class="field-label">Corpo</label><textarea id="sim-body" class="field" style="resize:vertical;min-height:60px">Ola, meu pedido chegou com defeito. Preciso de ajuda urgente.</textarea></div>
+            <button class="btn btn-success" style="width:100%;padding:9px;font-size:13px" onclick="simulateEmail()">Simular Recebimento</button>
+          </div>
+          <div class="card"><div class="section-title">Log</div><div id="webhook-log"><div style="font-size:12px;color:var(--faint);text-align:center;padding:20px">Nenhum e-mail recebido.</div></div></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="modal-user">
+  <div class="modal">
+    <div class="modal-title">Criar Usuario</div>
+    <div class="mb-12"><label class="field-label">Nome completo</label><input id="mu-name" class="field" placeholder="Maria Silva"/></div>
+    <div class="mb-12"><label class="field-label">E-mail</label><input id="mu-email" class="field" type="email" placeholder="maria@empresa.com"/></div>
+    <div class="mb-12"><label class="field-label">Senha</label><input id="mu-password" class="field" type="password" placeholder="Minimo 6 caracteres"/></div>
+    <div class="mb-12"><label class="field-label">Perfil</label><select id="mu-role" class="field"><option value="agent">Agente</option><option value="admin">Admin</option></select></div>
+    <div id="mu-err" class="overlay-err"></div>
+    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-user')">Cancelar</button><button class="btn btn-primary btn-sm" onclick="createUser()">Criar</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-edit">
+  <div class="modal">
+    <div class="modal-title" id="me-title">Editar</div>
+    <input type="hidden" id="me-id"/><input type="hidden" id="me-type"/>
+    <div class="mb-12"><label class="field-label">Nome</label><input id="me-label" class="field"/></div>
+    <div class="mb-12"><label class="field-label">Cor</label><input id="me-color" type="color" class="field" style="padding:3px;height:36px;width:80px"/></div>
+    <div id="me-err" class="overlay-err"></div>
+    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-edit')">Cancelar</button><button class="btn btn-primary btn-sm" onclick="saveEdit()">Salvar</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-canned">
+  <div class="modal">
+    <div class="modal-title" id="mc-title">Nova Resposta Pronta</div>
+    <input type="hidden" id="mc-id"/>
+    <div class="mb-12"><label class="field-label">Titulo</label><input id="mc-title-input" class="field" placeholder="Ex: Saudacao inicial"/></div>
+    <div class="mb-12"><label class="field-label">Categoria</label><input id="mc-category" class="field" placeholder="Ex: Abertura, Encerramento..."/></div>
+    <div class="mb-12"><label class="field-label">Conteudo</label><textarea id="mc-content" class="field" style="resize:vertical;min-height:100px" placeholder="Texto da resposta..."></textarea></div>
+    <div id="mc-err" class="overlay-err"></div>
+    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-canned')">Cancelar</button><button class="btn btn-primary btn-sm" onclick="saveCanned()">Salvar</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-merge">
+  <div class="modal">
+    <div class="modal-title">Mesclar Tickets</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">Este ticket sera mesclado com outro. Todas as mensagens serao movidas e o ticket de origem sera encerrado.</p>
+    <div class="mb-12"><label class="field-label">ID do ticket destino</label><input id="merge-target-id" class="field" type="number" placeholder="Ex: 42"/></div>
+    <div id="merge-err" class="overlay-err"></div>
+    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-merge')">Cancelar</button><button class="btn btn-primary btn-sm" onclick="doMerge()">Mesclar</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-confirm">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title" id="confirm-title">Confirmar</div>
+    <p id="confirm-text" style="font-size:13px;color:var(--text2);margin-bottom:4px"></p>
+    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-confirm')">Cancelar</button><button class="btn btn-danger btn-sm" id="confirm-ok-btn" onclick="">Confirmar</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── GLOBALS ──
+let db=null,currentUser=null,currentProfile=null;
+let allTickets=[],configItems={},allUsers=[],cannedResponses=[],slaConfigs={};
+let currentTicket=null,currentMsgTab='all',currentReplyType='public';
+let filterStatus='todos',filterPriority='todos',filterSource='todos',filterAssigned='todos',filterAgent='todos';
+let webhookLog=[],notifications=[];
+let slaInterval=null,collisionInterval=null;
+
+const $=id=>document.getElementById(id);
+const fmtDate=iso=>iso?new Date(iso).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+const AVT=['#FF6600','#FF8C00','#E55A00','#CC4400','#FF6B6B','#4ECDC4','#45B7D1','#96CEB4'];
+const aC=n=>AVT[(n||'A').charCodeAt(0)%AVT.length];
+const aI=n=>(n||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+const mkA=(n,s=22)=>`<div class="avatar" style="width:${s}px;height:${s}px;font-size:${s*.35}px;background:${aC(n)}">${aI(n)}</div>`;
+const bge=(l,c,bg)=>`<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const bgd=(l,c,bg)=>`<span class="badge" style="color:${c};background:${bg}"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block;margin-right:3px"></span>${l}</span>`;
+const h2r=(hex,a)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;};
+const cfgFind=(type,label)=>(configItems[type]||[]).find(x=>x.label===label)||{label:label||'?',color:'#6B6C85',bg_color:'#1E2235'};
+const agentName=()=>currentProfile?.name||currentUser?.email||'Agente';
+
+function showToast(msg,type='success'){const t=$('toast');t.textContent=msg;t.className=type;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+function openModal(id){$(id).classList.add('open');}
+function closeModal(id){$(id).classList.remove('open');}
+function confirm2(title,text,fn){$('confirm-title').textContent=title;$('confirm-text').textContent=text;$('confirm-ok-btn').onclick=()=>{closeModal('modal-confirm');fn();};openModal('modal-confirm');}
+function copyText(what){
+  const texts={json:'{"titulo": "@{triggerOutputs()?[\'body/subject\']}","cliente": "@{triggerOutputs()?[\'body/from\']}","mensagem": "@{triggerOutputs()?[\'body/body/content\']}"}'};
+  navigator.clipboard?.writeText(texts[what]||what);showToast('Copiado!');
+}
+function copySQL(){navigator.clipboard?.writeText($('sql-content').textContent);showToast('SQL copiado!');}
+function toggleSQL(){const b=$('sql-block');b.style.display=b.style.display==='none'?'block':'none';}
+
+// ── TEMA ──
+function toggleTheme(){
+  const html=document.documentElement;
+  const isLight=html.getAttribute('data-theme')==='light';
+  if(isLight){
+    html.removeAttribute('data-theme');
+    localStorage.setItem('sp-theme','dark');
+    $('theme-toggle').textContent='🌙';
+  } else {
+    html.setAttribute('data-theme','light');
+    localStorage.setItem('sp-theme','light');
+    $('theme-toggle').textContent='☀️';
+  }
+}
+(function initTheme(){
+  const saved=localStorage.getItem('sp-theme');
+  if(saved==='light'){
+    document.documentElement.setAttribute('data-theme','light');
+    const btn=document.getElementById('theme-toggle');
+    if(btn) btn.textContent='☀️';
+  }
+})();
+
+// ── SETUP & AUTH ──
+async function connectSupabase(){
+  const url=$('setup-url').value.trim(),key=$('setup-key').value.trim();
+  $('setup-err').textContent='';
+  if(!url||!key){$('setup-err').textContent='Preencha URL e Key.';return;}
+  try{
+    db=supabase.createClient(url,key);
+    const{error}=await db.from('config_items').select('id').limit(1);
+    if(error)throw error;
+    localStorage.setItem('sb_url',url);localStorage.setItem('sb_key',key);
+    $('setup-screen').style.display='none';$('login-screen').style.display='flex';
+    const{data:{session}}=await db.auth.getSession();
+    if(session){currentUser=session.user;await afterLogin();}
+  }catch(e){$('setup-err').textContent='Erro: '+(e.message||'Verifique URL e Key.');}
+}
+
+async function doLogin(){
+  const email=$('login-email').value.trim(),pass=$('login-password').value;
+  $('login-err').textContent='';
+  if(!email||!pass){$('login-err').textContent='Preencha e-mail e senha.';return;}
+  const{data,error}=await db.auth.signInWithPassword({email,password:pass});
+  if(error){$('login-err').textContent='E-mail ou senha incorretos.';return;}
+  currentUser=data.user;await afterLogin();
+}
+
+async function afterLogin(){
+  const{data:p}=await db.from('profiles').select('*').eq('id',currentUser.id).single();
+  currentProfile=p||{role:'agent',name:currentUser.email};
+  $('login-screen').style.display='none';$('app').style.display='flex';
+  $('header-username').textContent=currentProfile.name||currentUser.email;
+  $('header-role-badge').innerHTML=currentProfile.role==='admin'?'<span class="user-role role-admin">Admin</span>':'<span class="user-role role-agent">Agente</span>';
+  $('header-avatar').textContent=aI(currentProfile.name||currentUser.email);
+  $('header-avatar').style.background=aC(currentProfile.name||currentUser.email);
+  if(currentProfile.role==='admin')document.querySelectorAll('.admin-only').forEach(el=>el.style.display='block');
+  await loadConfig();await loadAll();await loadNotifications();
+  setView('list');
+  const paUrl=localStorage.getItem('pa_webhook_url');
+  if(paUrl){const inp=$('pa-webhook-url');if(inp)inp.value=paUrl;}
+
+  // ── REALTIME: atualiza lista quando ticket é criado/atualizado ──
+  db.channel('tickets-realtime')
+    .on('postgres_changes',{event:'*',schema:'public',table:'tickets'},async()=>{
+      await loadAll();
+      // Se estiver na tela de detalhe, recarrega o ticket atual
+      if(currentTicket&&document.getElementById('view-detail')?.style.display!=='none'){
+        const{data:t}=await db.from('tickets').select('*').eq('id',currentTicket.id).single();
+        if(t){
+          currentTicket=t;
+          $('detail-updated').textContent=fmtDate(t.updated_at);
+          $('detail-sla-badge').innerHTML=renderSLABadge(t);
+          renderSLADetail(t);
+        }
+      }
+    })
+    .subscribe();
+
+  // ── REALTIME: nova mensagem aparece automaticamente ──
+  db.channel('messages-realtime')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},async(payload)=>{
+      const msg=payload.new;
+      if(currentTicket&&msg.ticket_id===currentTicket.id){
+        const msgs=await loadMessages(currentTicket.id);
+        renderMessages(msgs);
+      }
+      // Notificação de nova mensagem de cliente
+      if(!msg.is_agent&&!msg.is_internal){
+        await loadNotifications();
+      }
+    })
+    .subscribe();
+
+  // ── TICKER: atualiza bolinhas de SLA a cada minuto ──
+  setInterval(()=>{
+    if(document.getElementById('view-list')?.style.display!=='none') renderList();
+    if(currentTicket){
+      $('detail-sla-badge').innerHTML=renderSLABadge(currentTicket);
+      renderSLADetail(currentTicket);
+    }
+  },60000);
+}
+
+async function doLogout(){
+  await db.auth.signOut();currentUser=null;currentProfile=null;
+  if(slaInterval)clearInterval(slaInterval);
+  $('app').style.display='none';$('login-screen').style.display='flex';
+  $('login-email').value='';$('login-password').value='';
+}
+
+// ── CONFIG ──
+async function loadConfig(){
+  const[{data:cfg},{data:sla},{data:canned}]=await Promise.all([
+    db.from('config_items').select('*').eq('active',true).order('position'),
+    db.from('sla_configs').select('*').eq('active',true),
+    db.from('canned_responses').select('*').eq('active',true).order('created_at')
+  ]);
+  configItems={};
+  (cfg||[]).forEach(item=>{
+    if(!configItems[item.type])configItems[item.type]=[];
+    if(!item.bg_color)item.bg_color=h2r(item.color,0.12);
+    configItems[item.type].push(item);
+  });
+  slaConfigs={};(sla||[]).forEach(s=>slaConfigs[s.priority]=s);
+  cannedResponses=canned||[];
+  renderSidebar();populateSelects();renderCannedPopup();
+}
+
+function renderSidebar(){
+  let h=`<div class="side-item active" data-sf-s="todos" onclick="setStatusFilter('todos')"><span>Todos</span><span class="side-count">${allTickets.filter(t=>!t.deleted).length}</span></div>`;
+  (configItems.status||[]).forEach(s=>{
+    const cnt=allTickets.filter(t=>!t.deleted&&t.status===s.label).length;
+    h+=`<div class="side-item" data-sf-s="${s.label}" onclick="setStatusFilter('${s.label}')"><span style="display:flex;align-items:center"><span class="side-dot" style="background:${s.color}"></span>${s.label}</span><span class="side-count">${cnt}</span></div>`;
+  });
+  $('sidebar-status-items').innerHTML=h;
+  let h2=`<div class="side-item" data-sf-p="todos" onclick="setPriorityFilter('todos')"><span>Todas</span></div>`;
+  (configItems.priority||[]).forEach(p=>{
+    h2+=`<div class="side-item" data-sf-p="${p.label}" onclick="setPriorityFilter('${p.label}')"><span style="display:flex;align-items:center"><span class="side-dot" style="background:${p.color}"></span>${p.label}</span></div>`;
+  });
+  $('sidebar-priority-items').innerHTML=h2;
+  // Stats
+  const sts=configItems.status||[];
+  let sg=`<div class="stat-card" style="border-left-color:var(--accent)" onclick="setStatusFilter('todos')"><div class="stat-num">${allTickets.filter(t=>!t.deleted).length}</div><div class="stat-label">Total</div></div>`;
+  sts.slice(0,4).forEach(s=>{
+    const cnt=allTickets.filter(t=>!t.deleted&&t.status===s.label).length;
+    const breach=allTickets.filter(t=>!t.deleted&&t.status===s.label&&isSLABreached(t)).length;
+    sg+=`<div class="stat-card" style="border-left-color:${s.color}" onclick="setStatusFilter('${s.label}')"><div class="stat-num">${cnt}</div><div class="stat-label">${s.label}</div>${breach>0?`<div class="stat-sub" style="color:var(--red)">${breach} SLA vencido</div>`:''}</div>`;
+  });
+  $('stats-grid').innerHTML=sg;
+  // Agent filter
+  let aopts='<option value="todos">Todos Agentes</option>';
+  allUsers.forEach(u=>aopts+=`<option value="${u.id}">${u.name||u.id.slice(0,8)}</option>`);
+  $('filter-agent-sel').innerHTML=aopts;
+  // Status filter
+  let sopts='<option value="todos">Todos Status</option>';
+  (configItems.status||[]).forEach(s=>sopts+=`<option value="${s.label}">${s.label}</option>`);
+  $('filter-status-sel').innerHTML=sopts;
+  $('filter-status-sel').value=filterStatus;
+}
+
+function populateSelects(){
+  let p='',c='',a='<option value="">Sem responsavel</option>';
+  (configItems.priority||[]).forEach(x=>p+=`<option value="${x.label}">${x.label}</option>`);
+  (configItems.category||[]).forEach(x=>c+=`<option value="${x.label}">${x.label}</option>`);
+  allUsers.forEach(u=>a+=`<option value="${u.id}">${u.name||u.id.slice(0,8)}</option>`);
+  ['nf-priority','priority-sel'].forEach(id=>{if($(id))$(id).innerHTML=p;});
+  ['nf-category','category-sel'].forEach(id=>{if($(id))$(id).innerHTML=c;});
+  ['nf-assigned','assigned-to-sel'].forEach(id=>{if($(id))$(id).innerHTML=a;});
+  let t='<option value="">+ tag</option>';
+  (configItems.tag||[]).forEach(x=>t+=`<option value="${x.label}">${x.label}</option>`);
+  if($('add-tag-sel'))$('add-tag-sel').innerHTML=t;
+  let r='<option value="">Selecione...</option>';
+  (configItems.contact_reason||[]).forEach(x=>r+=`<option value="${x.label}">${x.label}</option>`);
+  if($('contact-reason-sel'))$('contact-reason-sel').innerHTML=r;
+  let ss='<option value="">Selecione...</option>';
+  (configItems.sub_status||[]).forEach(x=>ss+=`<option value="${x.label}">${x.label}</option>`);
+  if($('sub-status-sel'))$('sub-status-sel').innerHTML=ss;
+}
+
+// ── SLA HELPERS ──
+function calcSLADue(createdAt,priority){
+  const cfg=slaConfigs[priority];if(!cfg)return null;
+  const created=new Date(createdAt);
+  return{response:new Date(created.getTime()+cfg.response_hours*3600000),resolution:new Date(created.getTime()+cfg.resolution_hours*3600000)};
+}
+
+// Calcula horas transcorridas desde última atualização
+function hoursElapsed(isoDate){
+  if(!isoDate)return null;
+  return(new Date()-new Date(isoDate))/3600000;
+}
+
+function fmtElapsed(hours){
+  if(hours===null)return '—';
+  if(hours<1)return `${Math.round(hours*60)}min`;
+  if(hours<24)return `${hours.toFixed(1)}h`;
+  return `${Math.floor(hours/24)}d ${Math.round(hours%24)}h`;
+}
+
+// Cor da bolinha baseada no tempo desde última atualização
+function getSLADotColor(ticket){
+  const resolved=['Resolvido','Fechado'].includes(ticket.status);
+  if(resolved)return{color:'#8E8E93',label:'Finalizado'};
+  const h=hoursElapsed(ticket.updated_at);
+  if(h===null)return{color:'#8E8E93',label:'—'};
+  if(h<=1)  return{color:'#34C759',label:'Verde'};    // até 1h
+  if(h<=6)  return{color:'#FF9500',label:'Laranja'};  // 1h-6h
+  if(h<=12) return{color:'#FFCC00',label:'Amarelo'};  // 6h-12h
+  return{color:'#FF3B30',label:'Vermelho'};            // >24h
+}
+
+function getSLAStatus(ticket){
+  if(!ticket)return null;
+  const now=new Date();
+  const res=ticket.sla_resolution_due?new Date(ticket.sla_resolution_due):null;
+  if(!res)return null;
+  const resolved=['Resolvido','Fechado'].includes(ticket.status);
+  if(resolved)return{type:'resolved',label:'Finalizado'};
+  const diffMs=res-now;
+  const diffH=diffMs/3600000;
+  if(diffMs<0)return{type:'breach',label:'SLA Vencido',diffH};
+  if(diffH<2)return{type:'warn',label:`${Math.ceil(diffH)}h p/ vencer`,diffH};
+  return{type:'ok',label:`${Math.ceil(diffH)}h p/ vencer`,diffH};
+}
+
+function isSLABreached(ticket){
+  const s=getSLAStatus(ticket);return s?.type==='breach';
+}
+
+function renderSLABadge(ticket){
+  const dot=getSLADotColor(ticket);
+  const elapsed=hoursElapsed(ticket.updated_at);
+  const elapsedStr=fmtElapsed(elapsed);
+  const sla=getSLAStatus(ticket);
+  const slaStr=sla&&sla.type!=='resolved'?` · ${sla.label}`:'';
+  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700">
+    <span style="width:9px;height:9px;border-radius:50%;background:${dot.color};display:inline-block;flex-shrink:0${dot.color==='#FFCC00'?';animation:pulse 2s infinite':''}"></span>
+    <span style="color:${dot.color}">${elapsedStr}${slaStr}</span>
+  </span>`;
+}
+
+function renderSLADetail(ticket){
+  if(!ticket)return;
+  const el=$('sla-detail-content');if(!el)return;
+  const dot=getSLADotColor(ticket);
+  const elapsed=hoursElapsed(ticket.updated_at);
+  const sla=getSLAStatus(ticket);
+  const colors={ok:'var(--green)',warn:'var(--orange)',breach:'var(--red)',resolved:'var(--muted)'};
+  const resolvido=['Resolvido','Fechado'].includes(ticket.status);
+
+  // Barra de progresso resolução
+  const pct=resolvido?100:ticket.sla_resolution_due?Math.min(100,Math.max(0,(new Date()-new Date(ticket.created_at))/(new Date(ticket.sla_resolution_due)-new Date(ticket.created_at))*100)):0;
+  const slaColor=sla?colors[sla.type]:'var(--muted)';
+
+  // Tempo 1a resposta
+  let respTime='Aguardando';
+  if(ticket.first_response_at){
+    const h=(new Date(ticket.first_response_at)-new Date(ticket.created_at))/3600000;
+    respTime=`${h.toFixed(1)}h ${ticket.sla_response_met===true?'<span style="color:var(--green)">✓</span>':ticket.sla_response_met===false?'<span style="color:var(--red)">✗</span>':''}`;
+  }
+
+  // Tempo solução
+  let solTime='Em aberto';
+  if(ticket.resolved_at){
+    const h=(new Date(ticket.resolved_at)-new Date(ticket.created_at))/3600000;
+    solTime=`${h.toFixed(1)}h ${ticket.sla_resolution_met===true?'<span style="color:var(--green)">✓</span>':ticket.sla_resolution_met===false?'<span style="color:var(--red)">✗</span>':''}`;
+  }
+
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="width:12px;height:12px;border-radius:50%;background:${dot.color};flex-shrink:0;display:inline-block"></span>
+      <span style="font-size:14px;font-weight:800;color:${dot.color}">${fmtElapsed(elapsed)}</span>
+      <span style="font-size:11px;color:var(--faint)">desde última atualização</span>
+    </div>
+    ${ticket.sla_resolution_due?`
+    <div class="sla-detail" style="border-left:3px solid ${slaColor};margin-bottom:10px">
+      <div class="sla-detail-label">Prazo de Resolução</div>
+      <div class="sla-detail-time" style="color:${slaColor};font-size:13px">${sla?.label||'—'}</div>
+      <div class="sla-bar" style="margin-top:5px"><div class="sla-bar-fill" style="width:${pct}%;background:${slaColor}"></div></div>
+      <div style="font-size:10px;color:var(--faint);margin-top:3px">Vence: ${fmtDate(ticket.sla_resolution_due)}</div>
+    </div>`:''}
+    <div style="font-size:11px;color:var(--muted);line-height:2.2">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--faint)">1ª Resposta:</span><span>${respTime}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--faint)">Prazo resp.:</span><span>${fmtDate(ticket.sla_response_due)}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--faint)">Tempo solução:</span><span>${solTime}</span></div>
+    </div>`;
+}
+
+// ── DATA ──
+async function loadAll(){
+  const[{data:tickets},{data:users}]=await Promise.all([
+    db.from('tickets').select('*').eq('deleted',false).order('updated_at',{ascending:false}),
+    db.from('profiles').select('*')
+  ]);
+  allTickets=tickets||[];allUsers=users||[];
+  renderSidebar();renderList();populateSelects();
+}
+
+async function loadMessages(ticketId){
+  const{data}=await db.from('messages').select('*').eq('ticket_id',ticketId).order('created_at');
+  return data||[];
+}
+
+async function loadAuditLog(ticketId){
+  const{data}=await db.from('audit_log').select('*').eq('ticket_id',ticketId).order('created_at',{ascending:false});
+  return data||[];
+}
+
+async function loadNotifications(){
+  if(!currentUser)return;
+  const{data}=await db.from('notifications').select('*').eq('user_id',currentUser.id).eq('read',false).order('created_at',{ascending:false}).limit(20);
+  notifications=data||[];
+  const cnt=$('notif-count');
+  if(notifications.length>0){cnt.textContent=notifications.length>9?'9+':notifications.length;cnt.style.display='flex';}
+  else cnt.style.display='none';
+  renderNotifList();
+}
+
+function renderNotifList(){
+  const el=$('notif-list');
+  if(!notifications.length){el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--faint)">Nenhuma notificacao.</div>';return;}
+  el.innerHTML=notifications.map(n=>`<div class="notif-item" onclick="openTicket(${n.ticket_id});toggleNotifPanel()"><div class="notif-item-title">#${n.ticket_id}</div><div class="notif-item-sub">${n.message}</div><div style="font-size:10px;color:var(--faint);margin-top:2px">${fmtDate(n.created_at)}</div></div>`).join('');
+}
+
+function toggleNotifPanel(){$('notif-panel').classList.toggle('open');}
+
+async function markAllRead(){
+  if(!currentUser)return;
+  await db.from('notifications').update({read:true}).eq('user_id',currentUser.id).eq('read',false);
+  notifications=[];$('notif-count').style.display='none';renderNotifList();$('notif-panel').classList.remove('open');
+}
+
+// ── RENDER LIST ──
+function renderList(){
+  const search=$('search-input').value.toLowerCase();
+  const list=allTickets.filter(t=>{
+    if(t.deleted)return false;
+    if(filterStatus!=='todos'&&t.status!==filterStatus)return false;
+    if(filterPriority!=='todos'&&t.priority!==filterPriority)return false;
+    if(filterSource!=='todos'&&t.source!==filterSource)return false;
+    if(filterAssigned==='me'&&t.assigned_to!==currentUser?.id)return false;
+    if(filterAssigned==='unassigned'&&t.assigned_to)return false;
+    if(filterAgent!=='todos'&&t.assigned_to!==filterAgent)return false;
+    if(search&&!t.title.toLowerCase().includes(search)&&!t.customer.toLowerCase().includes(search)&&!String(t.id).includes(search))return false;
+    return true;
+  });
+  const tb=$('ticket-tbody');
+  if(!list.length){tb.innerHTML=`<tr class="empty-row"><td colspan="11">Nenhum ticket encontrado.</td></tr>`;return;}
+  const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
+  tb.innerHTML=list.map(t=>{
+    const p=cfgFind('priority',t.priority),s=cfgFind('status',t.status);
+    const tags=(t.tags||[]).map(tg=>{const x=cfgFind('tag',tg);return `<span class="tag" style="color:${x.color};background:${x.bg_color}">${tg}</span>`;}).join(' ');
+    const sla=renderSLABadge(t);
+    const breached=isSLABreached(t);
+    const agentLabel=t.assigned_to&&agentMap[t.assigned_to]?`<div style="display:flex;align-items:center;gap:5px">${mkA(agentMap[t.assigned_to],18)}<span>${agentMap[t.assigned_to]}</span></div>`:`<span style="color:var(--faint);font-size:11px">—</span>`;
+    return `<tr onclick="openTicket(${t.id})" style="${breached?'background:rgba(255,59,48,.04)':''}">
+      <td class="td-id">#${t.id}</td>
+      <td class="td-title">${t.title}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">${mkA(t.customer,20)}<span>${t.customer}</span></div></td>
+      <td>${agentLabel}</td>
+      <td>${bge(t.category,'#6B6C85','#1E2235')}</td>
+      <td style="max-width:120px">${tags||'<span style="color:var(--faint);font-size:10px">—</span>'}</td>
+      <td>${bgd(p.label,p.color,p.bg_color)}</td>
+      <td>${bge(s.label,s.color,s.bg_color)}${t.sub_status?`<br><span style="font-size:10px;color:var(--muted)">${t.sub_status}</span>`:''}</td>
+      <td>${sla}</td>
+      <td style="font-size:10px;color:var(--faint)">${fmtDate(t.updated_at)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-xs" onclick="confirmDelete(${t.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── DETAIL ──
+async function openTicket(id){
+  currentTicket=allTickets.find(t=>t.id===id);
+  if(!currentTicket)return;
+  const p=cfgFind('priority',currentTicket.priority);
+  $('detail-id-title').textContent=`Ticket #${id}`;
+  $('detail-source-badge').innerHTML=currentTicket.source==='email'?bge('📧 E-mail','#7DD3FC','#7DD3FC15'):bge('Manually','#9CA3AF','#9CA3AF15');
+  $('detail-sla-badge').innerHTML=renderSLABadge(currentTicket);
+  $('detail-title').textContent=currentTicket.title;
+  $('detail-customer').textContent=currentTicket.customer;
+  $('detail-email').textContent=currentTicket.email;
+  $('detail-avatar').style.background=aC(currentTicket.customer);
+  $('detail-avatar').textContent=aI(currentTicket.customer);
+  $('detail-priority-badge').innerHTML=bgd(p.label,p.color,p.bg_color);
+  $('detail-created').textContent=fmtDate(currentTicket.created_at);
+  $('detail-updated').textContent=fmtDate(currentTicket.updated_at);
+  $('detail-source').textContent=currentTicket.source==='email'?'E-mail':'Manual';
+  $('detail-first-response').textContent=fmtDate(currentTicket.first_response_at);
+  $('detail-resolved').textContent=fmtDate(currentTicket.resolved_at);
+  // Selects sidebar
+  if($('assigned-to-sel'))$('assigned-to-sel').value=currentTicket.assigned_to||'';
+  if($('priority-sel'))$('priority-sel').value=currentTicket.priority||'';
+  if($('category-sel'))$('category-sel').value=currentTicket.category||'';
+  renderDetailTags();renderStatusBtns();
+  $('contact-reason-sel').value=currentTicket.contact_reason||'';
+  $('contact-reason-display').textContent=currentTicket.contact_reason?'✓ '+currentTicket.contact_reason:'';
+  $('sub-status-sel').value=currentTicket.sub_status||'';
+  $('sub-status-display').textContent=currentTicket.sub_status?'✓ '+currentTicket.sub_status:'';
+  renderSLADetail(currentTicket);
+  const msgs=await loadMessages(id);
+  renderMessages(msgs);
+  setView('detail');
+  // SLA interval
+  if(slaInterval)clearInterval(slaInterval);
+  slaInterval=setInterval(()=>{if(currentTicket){$('detail-sla-badge').innerHTML=renderSLABadge(currentTicket);renderSLADetail(currentTicket);}},30000);
+  // Collision detection
+  startCollisionDetection(id);
+}
+
+function startCollisionDetection(ticketId){
+  if(collisionInterval)clearInterval(collisionInterval);
+  const key=`viewing_${ticketId}`;
+  const me=agentName();
+  localStorage.setItem(key,JSON.stringify({name:me,time:Date.now()}));
+  collisionInterval=setInterval(()=>{
+    localStorage.setItem(key,JSON.stringify({name:me,time:Date.now()}));
+    const others=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k===key)continue;
+      if(k.startsWith(`viewing_${ticketId}_`)||k===`viewing_${ticketId}`){
+        try{const v=JSON.parse(localStorage.getItem(k));if(Date.now()-v.time<15000&&v.name!==me)others.push(v.name);}catch(e){}
+      }
+    }
+    const bar=$('collision-bar');
+    if(others.length>0){bar.style.display='block';$('collision-text').textContent=`${others.join(', ')} tambem esta visualizando este ticket.`;}
+    else bar.style.display='none';
+  },5000);
+}
+
+function renderDetailTags(){
+  $('detail-tags-display').innerHTML=(currentTicket.tags||[]).map(tg=>{
+    const x=cfgFind('tag',tg);
+    return `<span class="tag tag-rm" style="color:${x.color};background:${x.bg_color}" onclick="removeTag('${tg}')">${tg}</span>`;
+  }).join('');
+}
+
+function renderStatusBtns(){
+  $('status-buttons').innerHTML=(configItems.status||[]).map(s=>{
+    const active=currentTicket.status===s.label;
+    return `<button class="btn btn-sm" style="background:${active?s.color:'var(--border)'};color:#fff;margin-bottom:3px" onclick="changeStatus('${s.label}')">${s.label}</button>`;
+  }).join('');
+}
+
+function switchMsgTab(tab){
+  currentMsgTab=tab;
+  document.querySelectorAll('.msg-tab').forEach((b,i)=>{
+    const tabs=['all','client','internal','audit'];
+    b.classList.toggle('active',tabs[i]===tab);
+    if(tabs[i]==='internal')b.classList.toggle('internal-tab',tabs[i]===tab);
+  });
+  if(tab==='audit'){loadAuditLog(currentTicket.id).then(renderAuditLog);}
+  else{loadMessages(currentTicket.id).then(renderMessages);}
+}
+
+function renderMessages(msgs){
+  const el=$('msg-list');
+  let filtered=msgs;
+  if(currentMsgTab==='client')filtered=msgs.filter(m=>!m.is_internal);
+  if(currentMsgTab==='internal')filtered=msgs.filter(m=>m.is_internal);
+  if(!filtered.length){el.innerHTML=`<div style="color:var(--faint);font-size:12px;text-align:center;padding:20px">Nenhuma mensagem.</div>`;return;}
+  el.innerHTML=filtered.map(m=>{
+    const cls=m.is_internal?'internal':m.is_agent?'agent':'client';
+    const cc=(m.cc_emails||[]).length>0?(m.cc_emails||[]).join(', '):'';
+    const isHtml=m.content&&(m.content.includes('<html')||m.content.includes('<body')||m.content.includes('<div')||m.content.includes('<p ')||m.content.includes('<br'));
+    // Cabeçalho do e-mail para mensagens de cliente
+    const emailHeader=!m.is_agent&&!m.is_internal?`
+      <div style="background:var(--surface2);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;border:1px solid var(--border)">
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">De:</span> <span style="color:var(--text)">${m.author}</span></div>
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">Para:</span> <span style="color:var(--text2)">centraldeatendimento@movida.com.br</span></div>
+        ${cc?`<div><span style="color:var(--faint);min-width:50px;display:inline-block">CC:</span> <span style="color:var(--text2)">${cc}</span></div>`:''}
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">Data:</span> <span style="color:var(--text2)">${fmtDate(m.created_at)}</span></div>
+      </div>`:'';
+    // Cabeçalho do agente (resposta)
+    const agentHeader=m.is_agent&&!m.is_internal?`
+      <div style="background:rgba(255,102,0,.06);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;border:1px solid rgba(255,102,0,.15)">
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">De:</span> <span style="color:var(--text)">${m.author} — Central de Atendimento Movida</span></div>
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">Para:</span> <span style="color:var(--text2)">${currentTicket?.email||''}</span></div>
+        ${cc?`<div><span style="color:var(--faint);min-width:50px;display:inline-block">CC:</span> <span style="color:var(--text2)">${cc}</span></div>`:''}
+        <div><span style="color:var(--faint);min-width:50px;display:inline-block">Data:</span> <span style="color:var(--text2)">${fmtDate(m.created_at)}</span></div>
+      </div>`:'';
+    const bodyContent=isHtml
+      ?(()=>{
+        // Substituir cid: por data URI se attachments disponíveis
+        let html=m.content||'';
+        if(m.attachments && Array.isArray(m.attachments)){
+          m.attachments.forEach(att=>{
+            if(att.contentId && att.contentBytes){
+              const re=new RegExp('cid:'+att.contentId.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+              html=html.replace(re,`data:${att.contentType||'image/png'};base64,${att.contentBytes}`);
+            }
+          });
+        }
+        // Também remover tags cid: não resolvidas para não mostrar ícone quebrado
+        html=html.replace(/src="cid:[^"]*"/gi,'src="" style="display:none"');
+        const encoded=html.replace(/"/g,'&quot;');
+        return `<iframe srcdoc="${encoded}" style="width:100%;border:none;min-height:80px;background:#fff;border-radius:4px" onload="this.style.height=this.contentDocument.body.scrollHeight+20+'px'"></iframe>`;
+      })()
+      :`<div style="white-space:pre-wrap;line-height:1.6">${m.content}</div>`;
+    return `<div class="msg-row ${cls}" style="max-width:100%">
+      <div class="msg-meta">${mkA(m.author,16)}<span>${m.author} · ${fmtDate(m.created_at)}</span>${m.is_internal?'<span style="font-size:9px;color:var(--yellow);background:rgba(255,204,0,.1);padding:1px 6px;border-radius:4px">INTERNO</span>':''}</div>
+      <div class="msg-bubble ${cls}" style="max-width:100%;width:100%">
+        ${emailHeader}${agentHeader}
+        ${bodyContent}
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function renderAuditLog(logs){
+  const el=$('msg-list');
+  if(!logs.length){el.innerHTML=`<div style="color:var(--faint);font-size:12px;text-align:center;padding:20px">Nenhum registro.</div>`;return;}
+  el.innerHTML=logs.map(l=>`<div class="audit-item"><div class="audit-dot"></div><div class="audit-text"><strong>${l.agent_name}</strong> ${l.action}${l.old_value&&l.new_value?` <span style="color:var(--faint)">${l.old_value} → ${l.new_value}</span>`:''}</div><div class="audit-time">${fmtDate(l.created_at)}</div></div>`).join('');
+}
+
+function setReplyType(type){
+  currentReplyType=type;
+  $('rtype-public').classList.toggle('active',type==='public');
+  $('rtype-internal').classList.toggle('active',type==='internal');
+  $('rtype-public').classList.remove('internal-active');
+  $('rtype-internal').classList.remove('internal-active');
+  if(type==='internal'){$('rtype-internal').classList.add('internal-active');$('reply-input').placeholder='Nota interna — visivel apenas para agentes (Ctrl+Enter para salvar)';}
+  else $('reply-input').placeholder='Digite sua resposta... (Ctrl+Enter para enviar)';
+  $('cc-input').style.display=type==='public'?'block':'none';
+  $('send-btn').textContent=type==='internal'?'Salvar Nota':'Enviar';
+}
+
+function renderCannedPopup(){
+  const el=$('canned-popup-list');if(!el)return;
+  el.innerHTML=cannedResponses.map(c=>`<div class="canned-item" onclick="insertCanned('${c.id}')"><div class="canned-item-title">${c.title}</div><div class="canned-item-preview">${c.content.slice(0,60)}...</div></div>`).join('')||'<div style="padding:10px;font-size:12px;color:var(--faint)">Nenhuma resposta pronta.</div>';
+}
+
+function toggleCannedPopup(){
+  const p=$('canned-popup');p.style.display=p.style.display==='none'?'block':'none';
+}
+
+function insertCanned(id){
+  const c=cannedResponses.find(x=>String(x.id)===String(id));
+  if(c){$('reply-input').value=c.content;$('canned-popup').style.display='none';}
+}
+
+// ── TICKET ACTIONS ──
+async function sendReply(){
+  const text=$('reply-input').value.trim();if(!text||!currentTicket)return;
+  const isInternal=currentReplyType==='internal';
+  const ccRaw=$('cc-input').value.trim();
+  const ccEmails=ccRaw?ccRaw.split(',').map(e=>e.trim()).filter(Boolean):[];
+  const name=agentName();
+  await db.from('messages').insert({ticket_id:currentTicket.id,author:name,content:text,is_agent:true,is_internal:isInternal,cc_emails:ccEmails});
+  // Audit
+  await addAudit(currentTicket.id,isInternal?'adicionou nota interna':'respondeu ao cliente');
+  // First response
+  if(!isInternal&&!currentTicket.first_response_at){
+    const now=new Date().toISOString();
+    const repDue=currentTicket.sla_response_due;
+    const met=repDue?new Date(now)<=new Date(repDue):null;
+    await db.from('tickets').update({first_response_at:now,sla_response_met:met,updated_at:now}).eq('id',currentTicket.id);
+    currentTicket.first_response_at=now;currentTicket.sla_response_met=met;
+  } else {
+    await db.from('tickets').update({updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  }
+  $('reply-input').value='';$('cc-input').value='';
+  const msgs=await loadMessages(currentTicket.id);renderMessages(msgs);
+  showToast(isInternal?'Nota interna salva!':'Resposta enviada!');
+  loadAll();
+  // Power Automate
+  if(!isInternal){
+    const paUrl=localStorage.getItem('pa_webhook_url');
+    if(paUrl&&currentTicket.email){
+      try{await fetch(paUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_id:currentTicket.id,customer_email:currentTicket.email,customer_name:currentTicket.customer,agent_name:name,message:text,ticket_title:currentTicket.title,cc_emails:ccEmails})});}
+      catch(e){console.warn('PA error:',e);}
+    }
+  }
+}
+
+async function changeStatus(status){
+  if(!currentTicket)return;
+  const old=currentTicket.status;
+  const now=new Date().toISOString();
+  const updates={status,updated_at:now};
+  if(['Resolvido','Fechado'].includes(status)&&!currentTicket.resolved_at){
+    updates.resolved_at=now;
+    const resDue=currentTicket.sla_resolution_due;
+    updates.sla_resolution_met=resDue?new Date(now)<=new Date(resDue):null;
+  }
+  await db.from('tickets').update(updates).eq('id',currentTicket.id);
+  await addAudit(currentTicket.id,`alterou status`,old,status);
+  Object.assign(currentTicket,updates);
+  renderStatusBtns();renderSLADetail(currentTicket);
+  showToast(`Status: "${status}"`);loadAll();
+}
+
+async function saveAssigned(uid){
+  if(!currentTicket)return;
+  const old=currentTicket.assigned_to;
+  const agent=allUsers.find(u=>u.id===uid);
+  await db.from('tickets').update({assigned_to:uid||null,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  await addAudit(currentTicket.id,'alterou responsavel',old?allUsers.find(u=>u.id===old)?.name:'Ninguem',agent?.name||'Ninguem');
+  currentTicket.assigned_to=uid||null;
+  showToast(agent?`Atribuido a ${agent.name}`:'Sem responsavel');loadAll();
+}
+
+async function savePriority(priority){
+  if(!currentTicket)return;
+  const old=currentTicket.priority;
+  const sla=calcSLADue(currentTicket.created_at,priority);
+  const updates={priority,updated_at:new Date().toISOString()};
+  if(sla){updates.sla_response_due=sla.response.toISOString();updates.sla_resolution_due=sla.resolution.toISOString();}
+  await db.from('tickets').update(updates).eq('id',currentTicket.id);
+  await addAudit(currentTicket.id,'alterou prioridade',old,priority);
+  Object.assign(currentTicket,updates);
+  const p=cfgFind('priority',priority);
+  $('detail-priority-badge').innerHTML=bgd(p.label,p.color,p.bg_color);
+  $('detail-sla-badge').innerHTML=renderSLABadge(currentTicket);
+  renderSLADetail(currentTicket);showToast(`Prioridade: "${priority}"`);loadAll();
+}
+
+async function saveCategory(category){
+  if(!currentTicket)return;
+  await db.from('tickets').update({category,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  await addAudit(currentTicket.id,'alterou categoria',currentTicket.category,category);
+  currentTicket.category=category;showToast(`Categoria: "${category}"`);loadAll();
+}
+
+async function saveReason(reason){
+  if(!currentTicket)return;
+  await db.from('tickets').update({contact_reason:reason,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  currentTicket.contact_reason=reason;
+  $('contact-reason-display').textContent=reason?'✓ '+reason:'';
+  if(reason)showToast('Motivo registrado!');
+}
+
+async function saveSubStatus(sub){
+  if(!currentTicket)return;
+  await db.from('tickets').update({sub_status:sub||null,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  currentTicket.sub_status=sub;
+  $('sub-status-display').textContent=sub?'✓ '+sub:'';
+  if(sub)showToast('Sub-status salvo!');loadAll();
+}
+
+async function addTag(tag){
+  if(!tag||!currentTicket)return;
+  const tags=[...new Set([...(currentTicket.tags||[]),tag])];
+  await db.from('tickets').update({tags,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  currentTicket.tags=tags;renderDetailTags();showToast(`Tag "${tag}" adicionada`);loadAll();
+}
+
+async function removeTag(tag){
+  if(!currentTicket)return;
+  const tags=(currentTicket.tags||[]).filter(t=>t!==tag);
+  await db.from('tickets').update({tags,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  currentTicket.tags=tags;renderDetailTags();showToast(`Tag "${tag}" removida`);loadAll();
+}
+
+async function addAudit(ticketId,action,oldVal,newVal){
+  await db.from('audit_log').insert({ticket_id:ticketId,agent_name:agentName(),action,old_value:oldVal||null,new_value:newVal||null});
+}
+
+async function createTicket(){
+  const title=$('nf-title').value.trim(),customer=$('nf-customer').value.trim(),email=$('nf-email').value.trim();
+  if(!title||!customer||!email){showToast('Preencha os campos obrigatorios.','error');return;}
+  const priority=$('nf-priority').value,category=$('nf-category').value,description=$('nf-description').value.trim();
+  const assigned=$('nf-assigned').value||null;
+  const defaultStatus=(configItems.status||[{label:'Aberto'}])[0].label;
+  const sla=calcSLADue(new Date().toISOString(),priority);
+  const{data,error}=await db.from('tickets').insert({title,customer,email,priority,category,status:defaultStatus,source:'manual',tags:[],assigned_to:assigned,sla_response_due:sla?.response?.toISOString(),sla_resolution_due:sla?.resolution?.toISOString()}).select().single();
+  if(error){showToast('Erro ao criar ticket','error');return;}
+  if(description)await db.from('messages').insert({ticket_id:data.id,author:customer,content:description,is_agent:false});
+  await addAudit(data.id,'criou o ticket');
+  $('nf-title').value='';$('nf-customer').value='';$('nf-email').value='';$('nf-description').value='';
+  showToast(`Ticket #${data.id} criado!`,'success');setView('list');loadAll();
+}
+
+function confirmDelete(id){
+  confirm2('Excluir Ticket',`Deseja excluir o ticket #${id}? Esta acao nao pode ser desfeita.`,()=>deleteTicketById(id));
+}
+
+async function deleteTicketById(id){
+  await db.from('tickets').update({deleted:true,updated_at:new Date().toISOString()}).eq('id',id);
+  showToast('Ticket excluido.');setView('list');loadAll();
+}
+
+async function deleteTicket(){
+  if(!currentTicket)return;
+  confirmDelete(currentTicket.id);
+}
+
+function mergeTicketPrompt(){$('merge-err').textContent='';$('merge-target-id').value='';openModal('modal-merge');}
+
+async function doMerge(){
+  const targetId=parseInt($('merge-target-id').value);
+  $('merge-err').textContent='';
+  if(!targetId||targetId===currentTicket.id){$('merge-err').textContent='ID invalido.';return;}
+  const target=allTickets.find(t=>t.id===targetId&&!t.deleted);
+  if(!target){$('merge-err').textContent='Ticket nao encontrado.';return;}
+  // Move messages
+  await db.from('messages').update({ticket_id:targetId}).eq('ticket_id',currentTicket.id);
+  await addAudit(targetId,'recebeu mensagens mescladas do ticket',String(currentTicket.id));
+  await addAudit(currentTicket.id,'foi mesclado no ticket',String(targetId));
+  // Close source
+  await db.from('tickets').update({deleted:true,updated_at:new Date().toISOString()}).eq('id',currentTicket.id);
+  closeModal('modal-merge');showToast(`Tickets mesclados! Redirecionando para #${targetId}...`,'success');
+  await loadAll();
+  setTimeout(()=>openTicket(targetId),1000);
+}
+
+// ── FILTERS ──
+function setStatusFilter(val){filterStatus=val;$('filter-status-sel').value=val;document.querySelectorAll('[data-sf-s]').forEach(el=>el.classList.toggle('active',el.dataset.sfS===val));renderList();}
+function setPriorityFilter(val){filterPriority=val;document.querySelectorAll('[data-sf-p]').forEach(el=>el.classList.toggle('active',el.dataset.sfP===val));renderList();}
+function setSourceFilter(val){filterSource=val;document.querySelectorAll('[data-sf]').forEach(el=>el.classList.toggle('active',el.dataset.sf===val));renderList();}
+function setAssignedFilter(val){filterAssigned=val;document.querySelectorAll('[data-sf-a]').forEach(el=>el.classList.toggle('active',el.dataset.sfA===val));renderList();}
+function setAgentFilter(val){filterAgent=val;renderList();}
+
+// ── REPORTS ──
+async function loadReports(){
+  const days=parseInt($('report-period').value)||30;
+  const since=new Date(Date.now()-days*86400000).toISOString();
+  const{data:tickets}=await db.from('tickets').select('*').gte('created_at',since).eq('deleted',false);
+  const t=tickets||[];
+  // Stats
+  const avg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):0;
+  const respTimes=t.filter(x=>x.first_response_at).map(x=>(new Date(x.first_response_at)-new Date(x.created_at))/3600000);
+  const resTimes=t.filter(x=>x.resolved_at).map(x=>(new Date(x.resolved_at)-new Date(x.created_at))/3600000);
+  const slaOk=t.filter(x=>x.sla_resolution_met===true).length;
+  const slaBreach=t.filter(x=>x.sla_resolution_met===false).length;
+  $('report-stats').innerHTML=`
+    <div class="stat-card" style="border-left-color:var(--accent)"><div class="stat-num">${t.length}</div><div class="stat-label">Total</div></div>
+    <div class="stat-card" style="border-left-color:var(--green)"><div class="stat-num">${avg(respTimes)}h</div><div class="stat-label">TM 1a Resposta</div></div>
+    <div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-num">${avg(resTimes)}h</div><div class="stat-label">TM Resolucao</div></div>
+    <div class="stat-card" style="border-left-color:${slaBreach>0?'var(--red)':'var(--green)'}"><div class="stat-num">${t.length?Math.round(slaOk/(slaOk+slaBreach||1)*100):0}%</div><div class="stat-label">SLA Cumprido</div></div>`;
+  // By status
+  const byStatus={};t.forEach(x=>{byStatus[x.status]=(byStatus[x.status]||0)+1;});
+  $('report-by-status').innerHTML=Object.entries(byStatus).map(([s,n])=>{const cfg=cfgFind('status',s);return`<div class="metric-row"><span class="metric-label" style="color:${cfg.color}">${s}</span><span class="metric-val">${n}</span></div>`;}).join('');
+  // By priority
+  const byPri={};t.forEach(x=>{byPri[x.priority]=(byPri[x.priority]||0)+1;});
+  $('report-by-priority').innerHTML=Object.entries(byPri).map(([p,n])=>{const cfg=cfgFind('priority',p);return`<div class="metric-row"><span class="metric-label" style="color:${cfg.color}">${p}</span><span class="metric-val">${n}</span></div>`;}).join('');
+  // By agent
+  const byAgent={};t.forEach(x=>{const uid=x.assigned_to||'nenhum';byAgent[uid]=(byAgent[uid]||0)+1;});
+  const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
+  $('report-by-agent').innerHTML=Object.entries(byAgent).sort((a,b)=>b[1]-a[1]).map(([uid,n])=>`<div class="metric-row"><span class="metric-label">${uid==='nenhum'?'Sem responsavel':agentMap[uid]||uid.slice(0,8)}</span><span class="metric-val">${n}</span></div>`).join('');
+  // SLA
+  $('report-sla').innerHTML=`<div class="metric-row"><span class="metric-label" style="color:var(--green)">Dentro do prazo</span><span class="metric-val">${slaOk}</span></div><div class="metric-row"><span class="metric-label" style="color:var(--red)">Fora do prazo</span><span class="metric-val">${slaBreach}</span></div><div class="metric-row"><span class="metric-label" style="color:var(--muted)">Sem registro</span><span class="metric-val">${t.length-slaOk-slaBreach}</span></div>`;
+  // By reason
+  const byReason={};t.filter(x=>x.contact_reason).forEach(x=>{byReason[x.contact_reason]=(byReason[x.contact_reason]||0)+1;});
+  $('report-reasons').innerHTML=Object.entries(byReason).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([r,n])=>`<div class="metric-row"><span class="metric-label">${r}</span><span class="metric-val">${n}</span></div>`).join('')||'<div style="color:var(--faint);font-size:12px;padding:10px">Nenhum motivo registrado.</div>';
+}
+
+// ── ADMIN ──
+function switchTab(tab){
+  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.toggle('active',t.getAttribute('onclick').includes("'"+tab+"'")));
+  document.querySelectorAll('.admin-section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+tab));
+  if(tab==='users')loadUsers();
+  else if(tab==='sla')loadSLAConfig();
+  else if(tab==='canned')loadCannedAdmin();
+  else if(tab==='integracoes')loadPaUrlStatus();
+  else renderConfigList(tab);
+}
+
+async function loadUsers(){
+  const{data}=await db.from('profiles').select('*').order('created_at');
+  $('users-list').innerHTML=(data||[]).map(u=>`<div class="user-row">${mkA(u.name||'U',30)}<div class="user-info"><div class="user-name">${u.name||'(sem nome)'}</div><div class="user-email">${u.id.slice(0,20)}...</div></div><span class="user-role ${u.role==='admin'?'role-admin':'role-agent'}">${u.role==='admin'?'Admin':'Agente'}</span>${u.id!==currentUser?.id?`<button class="btn btn-danger btn-xs" onclick="removeUser('${u.id}')">Remover</button>`:'<span style="font-size:11px;color:var(--faint)">(voce)</span>'}</div>`).join('')||'<div style="color:var(--faint);text-align:center;padding:20px;font-size:13px">Nenhum usuario.</div>';
+}
+
+async function createUser(){
+  const name=$('mu-name').value.trim(),email=$('mu-email').value.trim(),pass=$('mu-password').value,role=$('mu-role').value;
+  $('mu-err').textContent='';
+  if(!name||!email||!pass){$('mu-err').textContent='Preencha todos os campos.';return;}
+  if(pass.length<6){$('mu-err').textContent='Senha minima de 6 caracteres.';return;}
+  const{error}=await db.auth.signUp({email,password:pass,options:{data:{name,role}}});
+  if(error){$('mu-err').textContent='Erro: '+error.message;return;}
+  closeModal('modal-user');showToast(`Usuario ${name} criado!`,'success');setTimeout(()=>loadUsers(),800);
+}
+
+async function removeUser(id){
+  confirm2('Remover usuario','O usuario perdera acesso ao sistema.',async()=>{await db.from('profiles').delete().eq('id',id);showToast('Usuario removido.');loadUsers();});
+}
+
+function renderConfigList(type){
+  const items=configItems[type]||[];
+  const el=$(type==='contact_reason'?'list-contact_reason':type==='sub_status'?'list-sub_status':'list-'+type);if(!el)return;
+  el.innerHTML=items.map(item=>`<div class="config-row"><span class="color-pill" style="background:${item.color}"></span><span class="config-row-label">${item.label}</span>${item.is_default?'<span class="config-row-meta">padrao</span>':''}<button class="btn btn-secondary btn-xs" onclick="openEdit(${item.id},'${item.label.replace(/'/g,"\\'")}','${item.color}','${type}')">Editar</button>${!item.is_default?`<button class="btn btn-danger btn-xs" onclick="deleteItem(${item.id},'${type}')">Remover</button>`:''}</div>`).join('')||'<div style="color:var(--faint);font-size:12px;padding:10px">Nenhum item.</div>';
+}
+
+async function addItem(type){
+  const lEl=$(`new-${type}-label`),cEl=$(`new-${type}-color`);
+  const label=lEl.value.trim(),color=cEl.value;
+  if(!label){showToast('Digite um nome.','error');return;}
+  const bg_color=h2r(color,0.12),position=(configItems[type]||[]).length+1;
+  await db.from('config_items').insert({type,label,color,bg_color,is_default:false,position,active:true});
+  lEl.value='';showToast(`"${label}" adicionado!`,'success');
+  await loadConfig();renderConfigList(type);
+}
+
+function openEdit(id,label,color,type){
+  $('me-id').value=id;$('me-label').value=label;$('me-color').value=color;$('me-type').value=type;
+  $('me-title').textContent='Editar '+type;$('me-err').textContent='';openModal('modal-edit');
+}
+
+async function saveEdit(){
+  const id=$('me-id').value,label=$('me-label').value.trim(),color=$('me-color').value,type=$('me-type').value;
+  $('me-err').textContent='';if(!label){$('me-err').textContent='Digite um nome.';return;}
+  const bg_color=h2r(color,0.12);
+  await db.from('config_items').update({label,color,bg_color}).eq('id',id);
+  closeModal('modal-edit');showToast('Atualizado!');await loadConfig();renderConfigList(type);
+}
+
+async function deleteItem(id,type){
+  confirm2('Remover item','Deseja remover este item?',async()=>{
+    await db.from('config_items').update({active:false}).eq('id',id);
+    showToast('Removido!');await loadConfig();renderConfigList(type);
+  });
+}
+
+// ── SLA CONFIG ──
+async function loadSLAConfig(){
+  const{data}=await db.from('sla_configs').select('*');
+  const el=$('sla-config-list');if(!el)return;
+  el.innerHTML=(data||[]).map(s=>`
+    <div class="config-row" style="align-items:flex-start;flex-wrap:wrap;gap:12px">
+      <span class="config-row-label" style="min-width:80px">${bgd(s.priority,...(()=>{const p=cfgFind('priority',s.priority);return[p.color,p.bg_color];})())}</span>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div><label class="field-label">1a Resposta (h)</label><input type="number" class="field" style="width:80px" value="${s.response_hours}" onchange="updateSLA(${s.id},'response_hours',this.value)"/></div>
+        <div><label class="field-label">Resolucao (h)</label><input type="number" class="field" style="width:80px" value="${s.resolution_hours}" onchange="updateSLA(${s.id},'resolution_hours',this.value)"/></div>
+      </div>
+    </div>`).join('');
+}
+
+async function updateSLA(id,field,val){
+  await db.from('sla_configs').update({[field]:parseInt(val)}).eq('id',id);
+  showToast('SLA atualizado!');
+  const{data}=await db.from('sla_configs').select('*').eq('active',true);
+  slaConfigs={};(data||[]).forEach(s=>slaConfigs[s.priority]=s);
+}
+
+// ── CANNED RESPONSES ──
+async function loadCannedAdmin(){
+  const{data}=await db.from('canned_responses').select('*').eq('active',true).order('created_at');
+  const el=$('canned-list-admin');if(!el)return;
+  el.innerHTML=(data||[]).map(c=>`<div class="config-row"><div style="flex:1"><div style="font-weight:700;font-size:13px;color:var(--text)">${c.title}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${c.category} · ${c.content.slice(0,60)}...</div></div><button class="btn btn-secondary btn-xs" onclick="editCanned(${c.id},'${c.title.replace(/'/g,"\\'")}','${c.category}','${c.content.replace(/'/g,"\\'").replace(/\n/g,'\\n')}')">Editar</button><button class="btn btn-danger btn-xs" onclick="deleteCanned(${c.id})">Remover</button></div>`).join('')||'<div style="color:var(--faint);font-size:12px;padding:10px">Nenhuma resposta pronta.</div>';
+}
+
+function editCanned(id,title,category,content){
+  $('mc-id').value=id;$('mc-title-input').value=title;$('mc-category').value=category;$('mc-content').value=content.replace(/\\n/g,'\n');
+  $('mc-title').textContent='Editar Resposta Pronta';$('mc-err').textContent='';openModal('modal-canned');
+}
+
+async function saveCanned(){
+  const id=$('mc-id').value,title=$('mc-title-input').value.trim(),category=$('mc-category').value.trim(),content=$('mc-content').value.trim();
+  $('mc-err').textContent='';if(!title||!content){$('mc-err').textContent='Preencha titulo e conteudo.';return;}
+  if(id){await db.from('canned_responses').update({title,category,content}).eq('id',id);}
+  else{await db.from('canned_responses').insert({title,category,content,created_by:currentUser?.id});}
+  $('mc-id').value='';closeModal('modal-canned');showToast('Resposta pronta salva!');
+  await loadConfig();loadCannedAdmin();renderCannedPopup();
+}
+
+async function deleteCanned(id){
+  confirm2('Remover resposta pronta','Deseja remover esta resposta?',async()=>{
+    await db.from('canned_responses').update({active:false}).eq('id',id);
+    showToast('Removida.');await loadConfig();loadCannedAdmin();renderCannedPopup();
+  });
+}
+
+// ── INTEGRATIONS ──
+function savePaUrl(){
+  const url=$('pa-webhook-url').value.trim();
+  if(!url){showToast('Cole a URL.','error');return;}
+  localStorage.setItem('pa_webhook_url',url);
+  $('pa-url-status').textContent='Salvo!';
+  $('pa-url-indicator').innerHTML='<span style="color:var(--green)">Integracao ativa.</span>';
+  setTimeout(()=>$('pa-url-status').textContent='',2000);showToast('URL salva!');
+}
+function loadPaUrlStatus(){
+  const url=localStorage.getItem('pa_webhook_url');
+  const inp=$('pa-webhook-url'),ind=$('pa-url-indicator');
+  if(!inp||!ind)return;
+  if(url){inp.value=url;ind.innerHTML='<span style="color:var(--green)">Integracao ativa.</span>';}
+  else ind.innerHTML='<span style="color:var(--orange)">URL nao configurada.</span>';
+}
+
+// ── WEBHOOK ──
+const exN=from=>{const m=from.match(/^([^<]+)</);return m?m[1].trim():from.replace(/<.*>/,'').trim()||'Cliente';};
+const exE=from=>{const m=from.match(/<(.+)>/);return m?m[1]:from.includes('@')?from.trim():from;};
+function detPriority(s='',b=''){
+  const t=(s+' '+b).toLowerCase();
+  if(t.includes('urgente')||t.includes('critico'))return(configItems.priority||[])[0]?.label||'Urgente';
+  if(t.includes('problema')||t.includes('erro')||t.includes('danificado'))return(configItems.priority||[])[1]?.label||'Alta';
+  if(t.includes('duvida')||t.includes('consulta'))return(configItems.priority||[]).slice(-1)[0]?.label||'Baixa';
+  return(configItems.priority||[])[2]?.label||'Media';
+}
+function detCategory(s='',b=''){
+  const t=(s+' '+b).toLowerCase();
+  if(t.includes('entrega')||t.includes('pedido'))return 'Entrega';
+  if(t.includes('nota fiscal')||t.includes('reembolso'))return 'Fiscal';
+  if(t.includes('devolucao')||t.includes('defeito'))return 'Devolucao';
+  if(t.includes('pagamento')||t.includes('cupom'))return 'Financeiro';
+  if(t.includes('app')||t.includes('site')||t.includes('bug'))return 'Tecnico';
+  return 'Geral';
+}
+
+async function receiveEmailWebhook(payload){
+  const{titulo,cliente,mensagem}=payload;
+  const subject=titulo||'(sem assunto)',from=cliente||'cliente@email.com',body=mensagem||'';
+  const name=exN(from),email=exE(from);
+  const priority=detPriority(subject,body),category=detCategory(subject,body);
+  const defaultStatus=(configItems.status||[{label:'Aberto'}])[0].label;
+  const sla=calcSLADue(new Date().toISOString(),priority);
+  const{data,error}=await db.from('tickets').insert({title:subject,customer:name,email,priority,category,status:defaultStatus,source:'email',tags:[],sla_response_due:sla?.response?.toISOString(),sla_resolution_due:sla?.resolution?.toISOString()}).select().single();
+  if(error){webhookLog.unshift({status:'erro',error:error.message,time:new Date().toISOString()});renderWebhookLog();showToast('Erro','error');return;}
+  if(body)await db.from('messages').insert({ticket_id:data.id,author:name,content:body,is_agent:false});
+  await addAudit(data.id,'ticket criado via e-mail');
+  webhookLog.unshift({status:'ok',id:data.id,subject,time:new Date().toISOString()});
+  if(webhookLog.length>20)webhookLog.pop();
+  renderWebhookLog();showToast(`Ticket #${data.id} criado via e-mail!`,'success');loadAll();
+  // Notification
+  if(currentUser)await db.from('notifications').insert({user_id:currentUser.id,ticket_id:data.id,message:`Novo e-mail de ${name}: ${subject.slice(0,50)}`});
+  loadNotifications();
+}
+window.__receiveOutlookWebhook=receiveEmailWebhook;
+
+function renderWebhookLog(){
+  const el=$('webhook-log');if(!el)return;
+  if(!webhookLog.length){el.innerHTML=`<div style="font-size:12px;color:var(--faint);text-align:center;padding:20px">Nenhum e-mail.</div>`;return;}
+  el.innerHTML=webhookLog.map(l=>l.status==='ok'
+    ?`<div class="log-item log-ok"><span style="color:var(--green)">✓</span><span style="color:var(--muted)">Ticket <strong style="color:#fff">#${l.id}</strong></span><span class="log-subject">${l.subject}</span><span style="color:var(--faint);font-size:10px;flex-shrink:0">${fmtDate(l.time)}</span></div>`
+    :`<div class="log-item log-err"><span style="color:var(--red)">✗</span><span style="color:var(--muted)">${l.error}</span></div>`
+  ).join('');
+}
+
+async function simulateEmail(){
+  await receiveEmailWebhook({titulo:$('sim-subject').value,cliente:$('sim-from').value,mensagem:$('sim-body').value});
+  setTimeout(()=>setView('list'),1000);
+}
+
+// ── VIEW ──
+const VIEWS=['list','reports','detail','new','admin','webhook'];
+function setView(v){
+  VIEWS.forEach(id=>{const el=$('view-'+id);if(el)el.style.display=id===v?'block':'none';});
+  $('sidebar').style.display=(v==='list'||v==='detail')?'flex':'none';
+  document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===v||(v==='detail'&&btn.dataset.view==='list')));
+  if(v==='list')loadAll();
+  if(v==='reports')loadReports();
+  if(v==='admin')switchTab('users');
+  if(v==='webhook')renderWebhookLog();
+  if(v!=='detail'){if(slaInterval)clearInterval(slaInterval);if(collisionInterval)clearInterval(collisionInterval);}
+  $('notif-panel').classList.remove('open');
+}
+
+// ── BOOT ──
+window.addEventListener('DOMContentLoaded',()=>{
+  const url=localStorage.getItem('sb_url'),key=localStorage.getItem('sb_key');
+  if(url&&key){$('setup-url').value=url;$('setup-key').value=key;connectSupabase();}
+  // Poll notifications every 60s
+  setInterval(()=>{if(currentUser)loadNotifications();},60000);
+});
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#canned-popup')&&!e.target.closest('[onclick="toggleCannedPopup()"]'))$('canned-popup').style.display='none';
+  if(!e.target.closest('#notif-panel')&&!e.target.closest('#notif-btn'))$('notif-panel').classList.remove('open');
+});
+</script>
+</body>
+</html>
