@@ -385,10 +385,10 @@ INSERT INTO config_items(type,label,color,bg_color,is_default,position) VALUES
 ('tag','Urgente','#FF3B30','#FF3B3020',true,3),
 ('tag','Aguardando NF','#45B7D1','#45B7D120',true,4),
 ('sub_status','Aguardando retorno do cliente','#FFCC00','#FFCC0015',true,1),
-('sub_status','Aguardando area interna','#FF9500','#FF950015',true,2),
+('sub_status','Aguardando área interna','#FF9500','#FF950015',true,2),
 ('sub_status','Aguardando fornecedor','#FF6B6B','#FF6B6B15',true,3),
-('sub_status','Aguardando aprovacao','#8B5CF6','#8B5CF615',true,4),
-('sub_status','Em analise','#45B7D1','#45B7D115',true,5);
+('sub_status','Aguardando aprovação','#8B5CF6','#8B5CF615',true,4),
+('sub_status','Em análise','#45B7D1','#45B7D115',true,5);
 INSERT INTO sla_configs(priority,response_hours,resolution_hours) VALUES
 ('Urgente',1,4),('Alta',2,8),('Media',4,24),('Baixa',8,48);
 INSERT INTO canned_responses(title,content,category) VALUES
@@ -725,7 +725,7 @@ INSERT INTO canned_responses(title,content,category) VALUES
             <button class="admin-tab active" onclick="switchTab('users')">Usuarios</button>
             <button class="admin-tab" onclick="switchTab('status')">Status</button>
             <button class="admin-tab" onclick="switchTab('priority')">Prioridades</button>
-            <button class="admin-tab" onclick="switchTab('category')">Categorias</button>
+            <button class="admin-tab" onclick="switchTab('category')">Origem</button>
             <button class="admin-tab" onclick="switchTab('sub_status')">Sub-Status</button>
             <button class="admin-tab" onclick="switchTab('contact_reason')">Motivos</button>
             <button class="admin-tab" onclick="switchTab('tag')">Tags</button>
