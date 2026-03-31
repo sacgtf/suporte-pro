@@ -346,8 +346,11 @@ CREATE TABLE IF NOT EXISTS messages (
   author TEXT NOT NULL, content TEXT NOT NULL,
   is_agent BOOLEAN DEFAULT FALSE, is_internal BOOLEAN DEFAULT FALSE,
   cc_emails TEXT[] DEFAULT '{}',
+  quoted_html TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Adicionar coluna se já existir a tabela:
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS quoted_html TEXT DEFAULT NULL;
 CREATE TABLE IF NOT EXISTS audit_log (
   id BIGSERIAL PRIMARY KEY,
   ticket_id BIGINT REFERENCES tickets(id) ON DELETE CASCADE,
@@ -461,7 +464,7 @@ INSERT INTO canned_responses(title,content,category) VALUES
       </div>
     </div>
     <nav>
-      <button class="nav-btn" data-view="list" onclick="setView('list')">Dashboard</button>
+      <button class="nav-btn active" data-view="list" onclick="setView('list')">Dashboard</button>
       <button class="nav-btn" data-view="reports" onclick="setView('reports')">📊 Relatórios</button>
       <button class="nav-btn" data-view="new" onclick="setView('new')">+ Novo</button>
       <button class="nav-btn" data-view="admin" onclick="setView('admin')" style="display:none">⚙️ Admin</button>
@@ -981,8 +984,11 @@ INSERT INTO canned_responses(title,content,category) VALUES
             <div class="info-box">Prioridade e categoria detectadas automaticamente pelo conteudo do e-mail. SLA iniciado no momento da criacao.</div>
           </div>
           <div class="card"><div class="card-title">Body JSON para o Power Automate</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+              ⚠️ O campo <strong style="color:var(--text)">mensagem</strong> deve conter apenas o corpo completo do e-mail (HTML). O sistema separa automaticamente a mensagem nova do histórico citado.
+            </div>
             <div class="copy-row">
-              <div class="code-block-blue">{"titulo": "@{triggerOutputs()?['body/subject']}",
+              <div class="code-block-blue" id="pa-json-block">{"titulo": "@{triggerOutputs()?['body/subject']}",
 "cliente": "@{triggerOutputs()?['body/from']}",
 "mensagem": "@{triggerOutputs()?['body/body/content']}"}</div>
               <button class="btn btn-secondary btn-sm" onclick="copyText('json')">Copiar</button>
@@ -992,6 +998,13 @@ INSERT INTO canned_responses(title,content,category) VALUES
             <div class="mb-12"><label class="field-label">De</label><input id="sim-from" class="field" value="Joao Silva &lt;joao@empresa.com&gt;"/></div>
             <div class="mb-12"><label class="field-label">Assunto</label><input id="sim-subject" class="field" value="Problema com meu pedido urgente"/></div>
             <div class="mb-12"><label class="field-label">Corpo</label><textarea id="sim-body" class="field" style="resize:vertical;min-height:60px">Ola, meu pedido chegou com defeito. Preciso de ajuda urgente.</textarea></div>
+            <div class="mb-12">
+              <label class="field-label" style="display:flex;align-items:center;gap:6px">
+                Simular resposta com histórico citado
+                <span style="font-size:10px;color:var(--muted);font-weight:400">(opcional — testa separação de thread)</span>
+              </label>
+              <textarea id="sim-quoted" class="field" style="resize:vertical;min-height:50px;opacity:.7" placeholder="Cole aqui o HTML do histórico anterior (o que viria citado no e-mail do cliente)..."></textarea>
+            </div>
             <button class="btn btn-success" style="width:100%;padding:9px;font-size:13px" onclick="simulateEmail()">Simular Recebimento</button>
           </div>
           <div class="card"><div class="section-title">Log</div><div id="webhook-log"><div style="font-size:12px;color:var(--faint);text-align:center;padding:20px">Nenhum e-mail recebido.</div></div></div>
@@ -1238,9 +1251,6 @@ async function afterLogin(){
   setView('list');
   // Caixa de Entrada como filtro padrão ao entrar
   filterInbox=true;
-  document.querySelectorAll('[data-sf-inbox]').forEach(el=>el.classList.add('active'));
-  document.querySelectorAll('[data-sf-s]').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
   // Carregar tudo em paralelo (não sequencial)
   await Promise.all([loadConfig(),loadAll(),loadNotifications()]);
   const paUrl=localStorage.getItem('pa_webhook_url');
@@ -1842,6 +1852,10 @@ function renderMessages(msgs){
       body=`<div style="white-space:pre-wrap;line-height:1.75;font-size:13px;color:var(--text)">${(m.content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
     }
 
+    // quoted_html é ignorado na exibição — o thread aparece naturalmente
+    // via mensagens empilhadas em ordem cronológica crescente (igual Zendesk/Freshdesk).
+    // O campo existe no banco apenas para encadeamento no envio ao PA.
+
     return `<div style="border-left:3px solid ${borderColor};background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 13px 7px;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:7px">
@@ -2079,11 +2093,38 @@ async function sendReply(){
     showToast(isInternal?'Nota interna salva!':'Resposta enviada!','success');
     loadAll();
 
-    // Power Automate — envia texto + assinatura no corpo do e-mail
+    // Power Automate — envia texto + assinatura + histórico citado (thread estilo Outlook)
     if(!isInternal){
       const paUrl=localStorage.getItem('pa_webhook_url');
       if(paUrl&&currentTicket.email){
-        const emailBody=`<p>${text.replace(/\n/g,'<br>')}</p>${buildSignatureHtml()}`;
+        // Monta o histórico do thread: mensagens anteriores em ordem crescente
+        const allMsgs=await loadMessages(currentTicket.id);
+        // Exclui a mensagem recém-inserida (última) e notas internas
+        const prevMsgs=(allMsgs||[]).filter(m=>!m.is_internal&&m.id!==insertedMsg?.id);
+        // Gera o quoted thread em HTML (estilo Outlook)
+        let quotedThread='';
+        if(prevMsgs.length>0){
+          const threadItems=prevMsgs.map(m=>{
+            const dt=new Date(m.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+            const fromAddr=m.is_agent?`${m.author} <centraldeatendimento@movida.com.br>`:`${m.author} <${currentTicket.email}>`;
+            // Conteúdo: inclui o body da mensagem + quoted_html se existir
+            const msgBody=m.content||'';
+            const msgQuoted=m.quoted_html?`\n<div style="margin-top:8px">${m.quoted_html}</div>`:'';
+            return `<div style="margin-bottom:12px;padding-left:12px;border-left:2px solid #ccc">
+              <div style="font-size:12px;color:#666;margin-bottom:4px">
+                <strong>De:</strong> ${fromAddr}<br>
+                <strong>Enviado em:</strong> ${dt}
+              </div>
+              <div style="font-size:13px">${msgBody}${msgQuoted}</div>
+            </div>`;
+          }).join('');
+          quotedThread=`
+<div id="divRplyFwdMsg" style="margin-top:20px;padding-top:12px;border-top:1px solid #e0e0e0">
+  <p style="font-size:12px;color:#666;margin:0 0 10px 0">— Histórico da conversa —</p>
+  ${threadItems}
+</div>`;
+        }
+        const emailBody=`<p>${text.replace(/\n/g,'<br>')}</p>${buildSignatureHtml()}${quotedThread}`;
         try{
           await fetch(paUrl,{
             method:'POST',
@@ -2251,8 +2292,7 @@ function setInboxFilter(){
   if($('filter-status-sel'))$('filter-status-sel').value='todos';
   VIEWS.forEach(id=>{const el=$('view-'+id);if(el)el.style.display=id==='list'?'block':'none';});
   $('sidebar').style.display='flex';
-  // Caixa de Entrada ativa: nenhum nav-btn fica destacado
-  document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.view==='list'));
   renderList();
 }
 function setStatusFilter(val){
@@ -2262,7 +2302,6 @@ function setStatusFilter(val){
   document.querySelectorAll('[data-sf-inbox]').forEach(el=>el.classList.remove('active'));
   VIEWS.forEach(id=>{const el=$('view-'+id);if(el)el.style.display=id==='list'?'block':'none';});
   $('sidebar').style.display='flex';
-  // Dashboard ativo ao usar filtro de status
   document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.view==='list'));
   renderList();
 }
@@ -3038,6 +3077,57 @@ function detCategory(s='',b=''){
   return 'Geral';
 }
 
+// ── EMAIL THREAD EXTRACTION ──
+// Separa a mensagem nova do histórico citado (quoted reply)
+// Suporte a padrões do Outlook, Gmail e clientes genéricos
+function extractEmailParts(html){
+  if(!html)return{newContent:'',quotedHtml:''};
+
+  // Cria um DOM temporário para manipular
+  const tmp=document.createElement('div');
+  tmp.innerHTML=html;
+
+  // 1. Padrão Outlook: div com id="divRplyFwdMsg" ou class com "OutlookMessageHeader"
+  //    e também o separador <hr> que o Outlook injeta antes do histórico
+  const outlookSep=tmp.querySelector('#divRplyFwdMsg,[id*="divRply"],[id*="divFwd"],hr.gmail_quote_container');
+  if(outlookSep){
+    const quotedEl=outlookSep.cloneNode(true);
+    // Captura tudo a partir do separador
+    let sibling=outlookSep.nextSibling;
+    while(sibling){const n=sibling.nextSibling;quotedEl.appendChild(sibling.cloneNode(true));sibling=n;}
+    outlookSep.parentNode.removeChild(outlookSep);
+    // Remove elementos irmãos após o separador no original
+    const allNodes=[...tmp.querySelectorAll('*')];
+    return{newContent:tmp.innerHTML.trim(),quotedHtml:quotedEl.outerHTML};
+  }
+
+  // 2. Padrão Gmail: div.gmail_quote
+  const gmailQuote=tmp.querySelector('.gmail_quote,blockquote.gmail_quote');
+  if(gmailQuote){
+    const quotedHtml=gmailQuote.outerHTML;
+    gmailQuote.remove();
+    return{newContent:tmp.innerHTML.trim(),quotedHtml};
+  }
+
+  // 3. Padrão genérico: blockquote com type="cite" (RFC)
+  const bq=tmp.querySelector('blockquote[type="cite"],blockquote');
+  if(bq){
+    const quotedHtml=bq.outerHTML;
+    bq.remove();
+    return{newContent:tmp.innerHTML.trim(),quotedHtml};
+  }
+
+  // 4. Padrão texto: linha "De: ... Enviado em: ..." ou "-----Mensagem original-----"
+  const textSep=/<hr|-----\s*(mensagem original|original message|forwarded message)/i;
+  if(textSep.test(html)){
+    const idx=html.search(textSep);
+    return{newContent:html.slice(0,idx).trim(),quotedHtml:html.slice(idx).trim()};
+  }
+
+  // Sem histórico detectado — mensagem inteira é nova
+  return{newContent:html,quotedHtml:''};
+}
+
 async function receiveEmailWebhook(payload){
   const{titulo,cliente,mensagem}=payload;
   const subject=titulo||'(sem assunto)',from=cliente||'cliente@email.com',body=mensagem||'';
@@ -3045,7 +3135,18 @@ async function receiveEmailWebhook(payload){
   const defaultStatus=(configItems.status||[{label:'Novo'}])[0].label;
   const{data,error}=await db.from('tickets').insert({title:subject,customer:name,email,priority:'Media',category:'Geral',status:defaultStatus,source:'email',tags:[]}).select().single();
   if(error){webhookLog.unshift({status:'erro',error:error.message,time:new Date().toISOString()});renderWebhookLog();showToast('Erro','error');return;}
-  if(body)await db.from('messages').insert({ticket_id:data.id,author:name,content:body,is_agent:false});
+  if(body){
+    // Separar mensagem nova do histórico citado
+    const{newContent,quotedHtml}=extractEmailParts(body);
+    const contentToSave=newContent||body; // fallback: salva tudo se não conseguiu separar
+    await db.from('messages').insert({
+      ticket_id:data.id,
+      author:name,
+      content:contentToSave,
+      is_agent:false,
+      quoted_html:quotedHtml||null
+    });
+  }
   await addAudit(data.id,'ticket criado via e-mail');
   webhookLog.unshift({status:'ok',id:data.id,subject,time:new Date().toISOString()});
   if(webhookLog.length>20)webhookLog.pop();
@@ -3066,7 +3167,15 @@ function renderWebhookLog(){
 }
 
 async function simulateEmail(){
-  await receiveEmailWebhook({titulo:$('sim-subject').value,cliente:$('sim-from').value,mensagem:$('sim-body').value});
+  const quoted=$('sim-quoted')?.value?.trim()||'';
+  // Se há histórico simulado, concatena ao corpo para testar a separação automática
+  // OU passa separado via campo dedicado dependendo do modo
+  let mensagem=$('sim-body').value;
+  if(quoted){
+    // Simula e-mail real: body = nova mensagem + separador Outlook + histórico
+    mensagem=mensagem+`\n<div id="divRplyFwdMsg" style="border-top:1px solid #ccc;margin-top:16px;padding-top:10px">${quoted}</div>`;
+  }
+  await receiveEmailWebhook({titulo:$('sim-subject').value,cliente:$('sim-from').value,mensagem});
   setTimeout(()=>setView('list'),1000);
 }
 
@@ -3075,14 +3184,6 @@ const VIEWS=['list','reports','detail','new','admin','webhook'];
 function setView(v){
   VIEWS.forEach(id=>{const el=$('view-'+id);if(el)el.style.display=id===v?'block':'none';});
   $('sidebar').style.display=(v==='list'||v==='detail')?'flex':'none';
-  // Ao navegar direto para 'list' (botão Dashboard), limpa filtro de inbox
-  if(v==='list'){
-    filterInbox=false;
-    document.querySelectorAll('[data-sf-inbox]').forEach(el=>el.classList.remove('active'));
-    if(filterStatus==='todos'){
-      document.querySelectorAll('[data-sf-s]').forEach(el=>el.classList.toggle('active',el.dataset.sfS==='todos'));
-    }
-  }
   document.querySelectorAll('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===v||(v==='detail'&&btn.dataset.view==='list')));
   if(v==='list')loadAll();
   if(v==='reports')loadReports();
