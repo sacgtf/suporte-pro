@@ -6,6 +6,7 @@
 <title>SuportePro > E-mail</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // Aplicar tema salvo antes do CSS pintar a página (evita flash)
 (function(){const t=localStorage.getItem('sp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();
@@ -240,7 +241,7 @@ label.field-label{display:block;font-size:11px;font-weight:700;color:var(--muted
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:768px){aside{display:none}.stats-grid{grid-template-columns:repeat(4,1fr)}.form-grid,.form-grid-3{grid-template-columns:1fr}.detail-layout{flex-direction:column}.detail-sidebar{width:100%}}
+@media(max-width:768px){aside{display:none}.stats-grid{grid-template-columns:repeat(4,1fr)}.form-grid,.form-grid-3{grid-template-columns:1fr}.detail-layout{flex-direction:column}.detail-sidebar{width:100%}#rp-kpis{grid-template-columns:repeat(4,1fr)!important}}
 /* Tema claro — ajustes específicos */
 [data-theme="light"] select option{background:#fff;color:#1A1C2E}
 [data-theme="light"] .field{background:#fff;border-color:var(--border)}
@@ -508,22 +509,111 @@ INSERT INTO canned_responses(title,content,category) VALUES
 
       <!-- REPORTS -->
       <div id="view-reports" style="display:none">
-        <div class="view-header"><span class="view-title">📊 Relatórios</span>
-          <select class="filter-sel" id="report-period" onchange="loadReports()">
-            <option value="7">Últimos 7 dias</option>
-            <option value="30" selected>Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-          </select>
-          <button class="btn btn-secondary btn-sm" onclick="loadReports()">↻ Atualizar</button>
+
+        <!-- Filtros Globais -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-right:4px">Filtros:</span>
+            <select class="filter-sel" id="rp-period" onchange="loadReports()">
+              <option value="7">Últimos 7 dias</option>
+              <option value="30" selected>Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="180">Últimos 6 meses</option>
+              <option value="365">Último ano</option>
+            </select>
+            <select class="filter-sel" id="rp-agent" onchange="loadReports()"><option value="">Todos os Agentes</option></select>
+            <select class="filter-sel" id="rp-status" onchange="loadReports()"><option value="">Todos os Status</option></select>
+            <select class="filter-sel" id="rp-priority" onchange="loadReports()"><option value="">Todas as Prioridades</option></select>
+            <select class="filter-sel" id="rp-origin" onchange="loadReports()"><option value="">Todas as Origens</option></select>
+            <select class="filter-sel" id="rp-reason" onchange="loadReports()"><option value="">Todos os Motivos</option></select>
+            <button class="btn btn-secondary btn-sm" onclick="loadReports()">↻ Atualizar</button>
+            <div style="flex:1"></div>
+            <!-- Exportações -->
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-primary btn-sm" onclick="exportTicketsDetalhados()" title="Exportar todos os tickets com campos completos">📥 Tickets Detalhados</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportResumoDiario()" title="Exportar resumo por dia">📅 Resumo Diário</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportPerformanceAgente()" title="Exportar performance por agente">👤 Por Agente</button>
+            </div>
+          </div>
         </div>
-        <div class="stats-grid" id="report-stats" style="grid-template-columns:repeat(4,1fr)"></div>
-        <div class="dash-grid">
-          <div class="dash-card"><div class="dash-card-title">Tickets por Status</div><div id="report-by-status"></div></div>
-          <div class="dash-card"><div class="dash-card-title">Tickets por Prioridade</div><div id="report-by-priority"></div></div>
-          <div class="dash-card"><div class="dash-card-title">Desempenho por Agente</div><div id="report-by-agent"></div></div>
-          <div class="dash-card"><div class="dash-card-title">SLA — Cumprimento</div><div id="report-sla"></div></div>
+
+        <!-- Bloco 1: KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:16px" id="rp-kpis"></div>
+
+        <!-- Bloco 2: Gráficos -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div class="dash-card" style="grid-column:1/-1">
+            <div class="dash-card-title">Tickets Recebidos × Resolvidos por Dia</div>
+            <canvas id="chart-daily" height="90"></canvas>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">SLA Resposta — Dentro × Fora por Dia</div>
+            <canvas id="chart-sla-daily" height="130"></canvas>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Tickets por Prioridade</div>
+            <canvas id="chart-priority" height="130"></canvas>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Motivos de Contato Mais Frequentes</div>
+            <canvas id="chart-reasons" height="130"></canvas>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-title">Distribuição por Status</div>
+            <canvas id="chart-status" height="130"></canvas>
+          </div>
         </div>
-        <div class="dash-card"><div class="dash-card-title">Motivos de Contato mais frequentes</div><div id="report-reasons"></div></div>
+
+        <!-- Bloco 3: Rankings e Tabelas -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <!-- Ranking de Agentes -->
+          <div class="dash-card" style="grid-column:1/-1">
+            <div class="dash-card-title">🏆 Ranking de Agentes</div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px" id="rp-agent-table">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">#</th>
+                    <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Agente</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Recebidos</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Resolvidos</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Em Aberto</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">TMA Resp.</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">TMA Resol.</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">SLA Resp.</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">SLA Resol.</th>
+                    <th style="text-align:center;padding:7px 10px;font-size:10px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Reaberturas</th>
+                  </tr>
+                </thead>
+                <tbody id="rp-agent-tbody"><tr><td colspan="10" style="text-align:center;padding:20px;color:var(--faint)">Carregando...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SLA por Prioridade -->
+          <div class="dash-card">
+            <div class="dash-card-title">SLA por Prioridade</div>
+            <div id="rp-sla-priority"></div>
+          </div>
+
+          <!-- Qualidade / Reaberturas -->
+          <div class="dash-card">
+            <div class="dash-card-title">Qualidade — Reaberturas</div>
+            <div id="rp-quality"></div>
+          </div>
+
+          <!-- Tickets por Origem -->
+          <div class="dash-card">
+            <div class="dash-card-title">Tickets por Origem</div>
+            <div id="rp-by-origin"></div>
+          </div>
+
+          <!-- SLA Global -->
+          <div class="dash-card">
+            <div class="dash-card-title">SLA Global</div>
+            <div id="rp-sla-global"></div>
+          </div>
+        </div>
       </div>
 
       <!-- DETAIL -->
@@ -1181,7 +1271,7 @@ async function loadConfig(){
   });
   slaConfigs={};(sla||[]).forEach(s=>slaConfigs[s.priority]=s);
   cannedResponses=canned||[];
-  renderSidebar();populateSelects();renderCannedPopup();
+  renderSidebar();populateSelects();renderCannedPopup();rpPopulateFilters();
 }
 
 function renderSidebar(){
@@ -2099,37 +2189,439 @@ function setAssignedFilter(val){filterAssigned=val;document.querySelectorAll('[d
 function setAgentFilter(val){filterAgent=val;renderList();}
 
 // ── REPORTS ──
+let rpCharts={};
+let rpData=[];
+
+function rpDestroy(id){if(rpCharts[id]){rpCharts[id].destroy();delete rpCharts[id];}}
+
+function rpFmtTime(hours){
+  if(hours===null||isNaN(hours))return '—';
+  if(hours<1)return `${Math.round(hours*60)}min`;
+  if(hours<24)return `${hours.toFixed(1)}h`;
+  return `${Math.floor(hours/24)}d ${Math.round(hours%24)}h`;
+}
+
+function rpMedian(arr){
+  if(!arr.length)return null;
+  const s=[...arr].sort((a,b)=>a-b);
+  const m=Math.floor(s.length/2);
+  return s.length%2?s[m]:(s[m-1]+s[m])/2;
+}
+
+function rpPct(n,d){return d>0?Math.round(n/d*100):0;}
+
+function rpColorSla(pct){
+  if(pct>=90)return 'var(--green)';
+  if(pct>=70)return 'var(--orange)';
+  return 'var(--red)';
+}
+
+function rpProgressBar(pct,color){
+  return `<div style="display:flex;align-items:center;gap:7px;width:100%">
+    <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .4s"></div>
+    </div>
+    <span style="font-size:11px;font-weight:700;color:${color};min-width:32px;text-align:right">${pct}%</span>
+  </div>`;
+}
+
+function rpPopulateFilters(){
+  const agSel=$('rp-agent'),stSel=$('rp-status'),prSel=$('rp-priority'),orSel=$('rp-origin'),reSel=$('rp-reason');
+  if(!agSel)return;
+  const cur={ag:agSel.value,st:stSel.value,pr:prSel.value,or:orSel.value,re:reSel.value};
+  agSel.innerHTML='<option value="">Todos os Agentes</option>'+allUsers.map(u=>`<option value="${u.id}">${u.name||u.id.slice(0,8)}</option>`).join('');
+  const seen={st:new Set(),pr:new Set(),or:new Set(),re:new Set()};
+  (configItems.status||[]).forEach(s=>{if(!seen.st.has(s.label)){seen.st.add(s.label);stSel.innerHTML=(stSel.innerHTML||'<option value="">Todos os Status</option>')+`<option value="${s.label}">${s.label}</option>`;}});
+  stSel.innerHTML='<option value="">Todos os Status</option>'+(configItems.status||[]).filter(s=>{if(seen.st.has(s.label))return false;seen.st.add(s.label);return true;}).map(s=>`<option value="${s.label}">${s.label}</option>`).join('');
+  prSel.innerHTML='<option value="">Todas as Prioridades</option>'+(configItems.priority||[]).map(p=>`<option value="${p.label}">${p.label}</option>`).join('');
+  orSel.innerHTML='<option value="">Todas as Origens</option>'+(configItems.category||[]).map(c=>`<option value="${c.label}">${c.label}</option>`).join('');
+  reSel.innerHTML='<option value="">Todos os Motivos</option>'+(configItems.contact_reason||[]).map(r=>`<option value="${r.label}">${r.label}</option>`).join('');
+  agSel.value=cur.ag;stSel.value=cur.st;prSel.value=cur.pr;orSel.value=cur.or;reSel.value=cur.re;
+}
+
 async function loadReports(){
-  const days=parseInt($('report-period').value)||30;
+  rpPopulateFilters();
+  const days=parseInt($('rp-period')?.value)||30;
   const since=new Date(Date.now()-days*86400000).toISOString();
-  const{data:tickets}=await db.from('tickets').select('*').gte('created_at',since).eq('deleted',false);
-  const t=tickets||[];
-  // Stats
-  const avg=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):0;
+  const {data:tickets}=await db.from('tickets').select('*').gte('created_at',since).eq('deleted',false);
+  let t=tickets||[];
+
+  // Filtros globais
+  const fAg=$('rp-agent')?.value||'';
+  const fSt=$('rp-status')?.value||'';
+  const fPr=$('rp-priority')?.value||'';
+  const fOr=$('rp-origin')?.value||'';
+  const fRe=$('rp-reason')?.value||'';
+  if(fAg)t=t.filter(x=>x.assigned_to===fAg);
+  if(fSt)t=t.filter(x=>x.status===fSt);
+  if(fPr)t=t.filter(x=>x.priority===fPr);
+  if(fOr)t=t.filter(x=>x.category===fOr);
+  if(fRe)t=t.filter(x=>x.contact_reason===fRe);
+  rpData=t;
+
+  const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
+  const now=new Date();
+
+  // Helpers de tempo (horas)
   const respTimes=t.filter(x=>x.first_response_at).map(x=>(new Date(x.first_response_at)-new Date(x.created_at))/3600000);
   const resTimes=t.filter(x=>x.resolved_at).map(x=>(new Date(x.resolved_at)-new Date(x.created_at))/3600000);
-  const slaOk=t.filter(x=>x.sla_resolution_met===true).length;
-  const slaBreach=t.filter(x=>x.sla_resolution_met===false).length;
-  $('report-stats').innerHTML=`
-    <div class="stat-card" style="border-left-color:var(--accent)"><div class="stat-num">${t.length}</div><div class="stat-label">Total</div></div>
-    <div class="stat-card" style="border-left-color:var(--green)"><div class="stat-num">${avg(respTimes)}h</div><div class="stat-label">TM 1a Resposta</div></div>
-    <div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-num">${avg(resTimes)}h</div><div class="stat-label">TM Resolucao</div></div>
-    <div class="stat-card" style="border-left-color:${slaBreach>0?'var(--red)':'var(--green)'}"><div class="stat-num">${t.length?Math.round(slaOk/(slaOk+slaBreach||1)*100):0}%</div><div class="stat-label">SLA Cumprido</div></div>`;
-  // By status
-  const byStatus={};t.forEach(x=>{byStatus[x.status]=(byStatus[x.status]||0)+1;});
-  $('report-by-status').innerHTML=Object.entries(byStatus).map(([s,n])=>{const cfg=cfgFind('status',s);return`<div class="metric-row"><span class="metric-label" style="color:${cfg.color}">${s}</span><span class="metric-val">${n}</span></div>`;}).join('');
-  // By priority
-  const byPri={};t.forEach(x=>{byPri[x.priority]=(byPri[x.priority]||0)+1;});
-  $('report-by-priority').innerHTML=Object.entries(byPri).map(([p,n])=>{const cfg=cfgFind('priority',p);return`<div class="metric-row"><span class="metric-label" style="color:${cfg.color}">${p}</span><span class="metric-val">${n}</span></div>`;}).join('');
-  // By agent
-  const byAgent={};t.forEach(x=>{const uid=x.assigned_to||'nenhum';byAgent[uid]=(byAgent[uid]||0)+1;});
-  const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
-  $('report-by-agent').innerHTML=Object.entries(byAgent).sort((a,b)=>b[1]-a[1]).map(([uid,n])=>`<div class="metric-row"><span class="metric-label">${uid==='nenhum'?'Sem responsavel':agentMap[uid]||uid.slice(0,8)}</span><span class="metric-val">${n}</span></div>`).join('');
+  const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:null;
+  const avgResp=avg(respTimes),avgRes=avg(resTimes);
+  const medResp=rpMedian(respTimes),medRes=rpMedian(resTimes);
+
   // SLA
-  $('report-sla').innerHTML=`<div class="metric-row"><span class="metric-label" style="color:var(--green)">Dentro do prazo</span><span class="metric-val">${slaOk}</span></div><div class="metric-row"><span class="metric-label" style="color:var(--red)">Fora do prazo</span><span class="metric-val">${slaBreach}</span></div><div class="metric-row"><span class="metric-label" style="color:var(--muted)">Sem registro</span><span class="metric-val">${t.length-slaOk-slaBreach}</span></div>`;
-  // By reason
+  const slaRespOk=t.filter(x=>x.sla_response_met===true).length;
+  const slaRespBreach=t.filter(x=>x.sla_response_met===false).length;
+  const slaResOk=t.filter(x=>x.sla_resolution_met===true).length;
+  const slaResBreach=t.filter(x=>x.sla_resolution_met===false).length;
+  const pctRespSla=rpPct(slaRespOk,slaRespOk+slaRespBreach);
+  const pctResSla=rpPct(slaResOk,slaResOk+slaResBreach);
+  const statusFinais=['Resolvido','Fechado'];
+  const backlog=t.filter(x=>!statusFinais.includes(x.status)).length;
+  const semResp=t.filter(x=>!x.assigned_to).length;
+  const foraSla=t.filter(x=>!statusFinais.includes(x.status)&&x.sla_resolution_due&&new Date(x.sla_resolution_due)<now).length;
+  const reabertos=t.filter(x=>x.status==='Reaberto').length;
+  const taxaReab=rpPct(reabertos,t.length);
+
+  // ── BLOCO 1: KPIs ──
+  const kpis=[
+    {label:'Total de Tickets',val:t.length,color:'var(--accent)',icon:'🎫'},
+    {label:'Backlog Atual',val:backlog,color:backlog>0?'var(--orange)':'var(--green)',icon:'📋'},
+    {label:'TMA Resposta',val:rpFmtTime(avgResp),color:'var(--blue)',icon:'⚡'},
+    {label:'TMA Resolução',val:rpFmtTime(avgRes),color:'var(--blue)',icon:'✅'},
+    {label:'SLA Resposta',val:`${pctRespSla}%`,color:rpColorSla(pctRespSla),icon:'🎯'},
+    {label:'SLA Resolução',val:`${pctResSla}%`,color:rpColorSla(pctResSla),icon:'🏁'},
+    {label:'Fora do SLA',val:foraSla,color:foraSla>0?'var(--red)':'var(--green)',icon:'⚠️'},
+    {label:'Sem Responsável',val:semResp,color:semResp>0?'var(--orange)':'var(--green)',icon:'👤'},
+  ];
+  $('rp-kpis').innerHTML=kpis.map(k=>`
+    <div class="stat-card" style="border-left-color:${k.color};padding:11px 13px">
+      <div style="font-size:18px;margin-bottom:3px">${k.icon}</div>
+      <div style="font-size:20px;font-weight:800;color:${k.color};letter-spacing:-1px">${k.val}</div>
+      <div style="font-size:9px;color:var(--muted);font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">${k.label}</div>
+    </div>`).join('');
+
+  // ── BLOCO 2: Gráficos ──
+  const isDark=document.documentElement.getAttribute('data-theme')!=='light';
+  const gridColor=isDark?'rgba(255,255,255,.06)':'rgba(0,0,0,.07)';
+  const textColor=isDark?'#B0B0C8':'#3A3C55';
+  const accentOrange='#FF6600';
+  const accentGreen='#34C759';
+  const accentRed='#FF3B30';
+  const accentBlue='#7DD3FC';
+
+  // Gerar dias no período
+  const daysArr=[];
+  for(let i=days-1;i>=0;i--){
+    const d=new Date(Date.now()-i*86400000);
+    daysArr.push(d.toISOString().slice(0,10));
+  }
+  // Agregar por dia
+  const byDayRec={},byDayRes={},byDaySlaOk={},byDaySlaB={};
+  daysArr.forEach(d=>{byDayRec[d]=0;byDayRes[d]=0;byDaySlaOk[d]=0;byDaySlaB[d]=0;});
+  t.forEach(x=>{
+    const dc=x.created_at?.slice(0,10);
+    const dr=x.resolved_at?.slice(0,10);
+    if(dc&&byDayRec[dc]!==undefined)byDayRec[dc]++;
+    if(dr&&byDayRes[dr]!==undefined)byDayRes[dr]++;
+    if(x.sla_response_met===true&&dc&&byDaySlaOk[dc]!==undefined)byDaySlaOk[dc]++;
+    if(x.sla_response_met===false&&dc&&byDaySlaB[dc]!==undefined)byDaySlaB[dc]++;
+  });
+  const dayLabels=daysArr.map(d=>{const dt=new Date(d+'T12:00:00');return `${dt.getDate()}/${dt.getMonth()+1}`;});
+
+  // Chart: Recebidos x Resolvidos
+  rpDestroy('daily');
+  rpCharts['daily']=new Chart($('chart-daily'),{
+    type:'bar',
+    data:{labels:dayLabels,datasets:[
+      {label:'Recebidos',data:daysArr.map(d=>byDayRec[d]),backgroundColor:'rgba(255,102,0,.35)',borderColor:accentOrange,borderWidth:1.5,borderRadius:3},
+      {label:'Resolvidos',data:daysArr.map(d=>byDayRes[d]),backgroundColor:'rgba(52,199,89,.25)',borderColor:accentGreen,borderWidth:1.5,borderRadius:3},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:textColor,font:{size:11}}}},scales:{x:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor}},y:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor}}}}
+  });
+
+  // Chart: SLA por dia
+  rpDestroy('sla-daily');
+  rpCharts['sla-daily']=new Chart($('chart-sla-daily'),{
+    type:'line',
+    data:{labels:dayLabels,datasets:[
+      {label:'Dentro SLA',data:daysArr.map(d=>byDaySlaOk[d]),borderColor:accentGreen,backgroundColor:'rgba(52,199,89,.1)',fill:true,tension:.35,pointRadius:2,borderWidth:2},
+      {label:'Fora SLA',data:daysArr.map(d=>byDaySlaB[d]),borderColor:accentRed,backgroundColor:'rgba(255,59,48,.1)',fill:true,tension:.35,pointRadius:2,borderWidth:2},
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:textColor,font:{size:11}}}},scales:{x:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor}},y:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor}}}}
+  });
+
+  // Chart: Prioridade
+  const byPri={};t.forEach(x=>{byPri[x.priority||'—']=(byPri[x.priority||'—']||0)+1;});
+  const priLabels=Object.keys(byPri),priVals=Object.values(byPri);
+  const priCfg=priLabels.map(p=>{const c=cfgFind('priority',p);return c.color||accentOrange;});
+  rpDestroy('priority');
+  rpCharts['priority']=new Chart($('chart-priority'),{
+    type:'doughnut',
+    data:{labels:priLabels,datasets:[{data:priVals,backgroundColor:priCfg.map(c=>c+'88'),borderColor:priCfg,borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:textColor,font:{size:11}},position:'right'}}}
+  });
+
+  // Chart: Motivos
   const byReason={};t.filter(x=>x.contact_reason).forEach(x=>{byReason[x.contact_reason]=(byReason[x.contact_reason]||0)+1;});
-  $('report-reasons').innerHTML=Object.entries(byReason).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([r,n])=>`<div class="metric-row"><span class="metric-label">${r}</span><span class="metric-val">${n}</span></div>`).join('')||'<div style="color:var(--faint);font-size:12px;padding:10px">Nenhum motivo registrado.</div>';
+  const topReasons=Object.entries(byReason).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  rpDestroy('reasons');
+  rpCharts['reasons']=new Chart($('chart-reasons'),{
+    type:'bar',
+    data:{labels:topReasons.map(x=>x[0]),datasets:[{label:'Tickets',data:topReasons.map(x=>x[1]),backgroundColor:'rgba(125,211,252,.35)',borderColor:accentBlue,borderWidth:1.5,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor}},y:{ticks:{color:textColor,font:{size:10}},grid:{display:false}}}}
+  });
+
+  // Chart: Status
+  const byStatus={};t.forEach(x=>{byStatus[x.status||'—']=(byStatus[x.status||'—']||0)+1;});
+  const stLabels=Object.keys(byStatus),stVals=Object.values(byStatus);
+  const stCfg=stLabels.map(s=>{const c=cfgFind('status',s);return c.color||'#6B6C85';});
+  rpDestroy('status');
+  rpCharts['status']=new Chart($('chart-status'),{
+    type:'doughnut',
+    data:{labels:stLabels,datasets:[{data:stVals,backgroundColor:stCfg.map(c=>c+'88'),borderColor:stCfg,borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:textColor,font:{size:11}},position:'right'}}}
+  });
+
+  // ── BLOCO 3: Ranking de Agentes ──
+  const agentStats={};
+  allUsers.forEach(u=>{
+    agentStats[u.id]={name:u.name||u.id.slice(0,8),rec:0,res:0,open:0,respTimes:[],resTimes:[],slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0,reab:0};
+  });
+  agentStats['none']={name:'Sem responsável',rec:0,res:0,open:0,respTimes:[],resTimes:[],slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0,reab:0};
+  t.forEach(x=>{
+    const uid=x.assigned_to||'none';
+    if(!agentStats[uid])agentStats[uid]={name:agentMap[uid]||uid.slice(0,8)||'Sem responsável',rec:0,res:0,open:0,respTimes:[],resTimes:[],slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0,reab:0};
+    const ag=agentStats[uid];
+    ag.rec++;
+    if(statusFinais.includes(x.status))ag.res++;else ag.open++;
+    if(x.first_response_at)ag.respTimes.push((new Date(x.first_response_at)-new Date(x.created_at))/3600000);
+    if(x.resolved_at)ag.resTimes.push((new Date(x.resolved_at)-new Date(x.created_at))/3600000);
+    if(x.sla_response_met===true)ag.slaROk++;
+    if(x.sla_response_met===false)ag.slaRBr++;
+    if(x.sla_resolution_met===true)ag.slaResOk++;
+    if(x.sla_resolution_met===false)ag.slaResBr++;
+    if(x.status==='Reaberto')ag.reab++;
+  });
+  const agList=Object.values(agentStats).filter(a=>a.rec>0).sort((a,b)=>b.res-a.res);
+  $('rp-agent-tbody').innerHTML=agList.length?agList.map((ag,i)=>{
+    const pSlaR=rpPct(ag.slaROk,ag.slaROk+ag.slaRBr);
+    const pSlaRes=rpPct(ag.slaResOk,ag.slaResOk+ag.slaResBr);
+    const tmaR=avg(ag.respTimes),tmaRes=avg(ag.resTimes);
+    return `<tr style="border-bottom:1px solid var(--surface2)">
+      <td style="padding:8px 10px;color:var(--faint);font-weight:700">${i+1}</td>
+      <td style="padding:8px 10px;font-weight:600;color:var(--text)">${ag.name}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--text2)">${ag.rec}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--green);font-weight:700">${ag.res}</td>
+      <td style="padding:8px 10px;text-align:center;color:${ag.open>0?'var(--orange)':'var(--faint)'}">${ag.open}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--blue)">${rpFmtTime(tmaR)}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--blue)">${rpFmtTime(tmaRes)}</td>
+      <td style="padding:8px 10px;text-align:center;color:${rpColorSla(pSlaR)};font-weight:700">${pSlaR}%</td>
+      <td style="padding:8px 10px;text-align:center;color:${rpColorSla(pSlaRes)};font-weight:700">${pSlaRes}%</td>
+      <td style="padding:8px 10px;text-align:center;color:${ag.reab>0?'var(--orange)':'var(--faint)'}">${ag.reab}</td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--faint)">Nenhum dado.</td></tr>`;
+
+  // SLA por Prioridade
+  const slaByPri={};
+  t.forEach(x=>{
+    const p=x.priority||'—';
+    if(!slaByPri[p])slaByPri[p]={ok:0,br:0};
+    if(x.sla_resolution_met===true)slaByPri[p].ok++;
+    if(x.sla_resolution_met===false)slaByPri[p].br++;
+  });
+  $('rp-sla-priority').innerHTML=Object.entries(slaByPri).map(([p,v])=>{
+    const pct=rpPct(v.ok,v.ok+v.br);
+    const cfg=cfgFind('priority',p);
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+        <span style="color:${cfg.color};font-weight:700">${p}</span>
+        <span style="color:var(--faint)">${v.ok+v.br} tickets · ${v.ok} OK · ${v.br} breach</span>
+      </div>
+      ${rpProgressBar(pct,rpColorSla(pct))}
+    </div>`;
+  }).join('')||'<div style="color:var(--faint);font-size:12px">Sem dados de SLA.</div>';
+
+  // Qualidade
+  const byReabAgent={};
+  t.filter(x=>x.status==='Reaberto').forEach(x=>{
+    const nm=agentMap[x.assigned_to]||'Sem responsável';
+    byReabAgent[nm]=(byReabAgent[nm]||0)+1;
+  });
+  const byReabReason={};
+  t.filter(x=>x.status==='Reaberto'&&x.contact_reason).forEach(x=>{byReabReason[x.contact_reason]=(byReabReason[x.contact_reason]||0)+1;});
+  $('rp-quality').innerHTML=`
+    <div class="metric-row"><span class="metric-label">Total Reabertos</span><span class="metric-val" style="color:var(--orange)">${reabertos}</span></div>
+    <div class="metric-row"><span class="metric-label">Taxa de Reabertura</span><span class="metric-val" style="color:${taxaReab>10?'var(--red)':'var(--orange)'}">${taxaReab}%</span></div>
+    <div style="margin-top:10px;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px">Por Agente</div>
+    ${Object.entries(byReabAgent).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,v])=>`<div class="metric-row"><span class="metric-label">${n}</span><span class="metric-val" style="color:var(--orange)">${v}</span></div>`).join('')||'<div style="color:var(--faint);font-size:12px">—</div>'}
+    <div style="margin-top:10px;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px">Por Motivo</div>
+    ${Object.entries(byReabReason).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([r,v])=>`<div class="metric-row"><span class="metric-label">${r}</span><span class="metric-val" style="color:var(--orange)">${v}</span></div>`).join('')||'<div style="color:var(--faint);font-size:12px">—</div>'}
+  `;
+
+  // Por Origem
+  const byOrigin={};t.forEach(x=>{const o=x.category||'—';byOrigin[o]=(byOrigin[o]||0)+1;});
+  $('rp-by-origin').innerHTML=Object.entries(byOrigin).sort((a,b)=>b[1]-a[1]).map(([o,n])=>{
+    const cfg=cfgFind('category',o);
+    const pct=rpPct(n,t.length);
+    return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:${cfg.color||'var(--text2)'};font-weight:600">${o}</span><span style="color:var(--faint)">${n}</span></div>${rpProgressBar(pct,'var(--accent)')}</div>`;
+  }).join('')||'<div style="color:var(--faint);font-size:12px">Sem dados.</div>';
+
+  // SLA Global
+  $('rp-sla-global').innerHTML=`
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--faint);margin-bottom:6px;font-weight:600">SLA 1ª Resposta</div>
+      ${rpProgressBar(pctRespSla,rpColorSla(pctRespSla))}
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px">
+        <span>✅ Dentro: ${slaRespOk}</span><span>❌ Fora: ${slaRespBreach}</span><span>— Sem dado: ${t.length-slaRespOk-slaRespBreach}</span>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--faint);margin-bottom:6px;font-weight:600">SLA Resolução</div>
+      ${rpProgressBar(pctResSla,rpColorSla(pctResSla))}
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px">
+        <span>✅ Dentro: ${slaResOk}</span><span>❌ Fora: ${slaResBreach}</span><span>— Sem dado: ${t.length-slaResOk-slaResBreach}</span>
+      </div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Mediana Resposta</span><span class="metric-val" style="color:var(--blue)">${rpFmtTime(medResp)}</span></div>
+    <div class="metric-row"><span class="metric-label">Mediana Resolução</span><span class="metric-val" style="color:var(--blue)">${rpFmtTime(medRes)}</span></div>
+    <div class="metric-row"><span class="metric-label">Atualmente fora SLA</span><span class="metric-val" style="color:${foraSla>0?'var(--red)':'var(--green)'}">${foraSla}</span></div>
+  `;
+}
+
+// ── EXPORTAÇÕES XLSX (usando SheetJS via CDN) ──
+function rpLoadSheetJS(cb){
+  if(window.XLSX){cb();return;}
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload=cb;
+  document.head.appendChild(s);
+}
+
+function rpDownloadXlsx(wb,filename){
+  XLSX.writeFile(wb,filename);
+}
+
+function exportTicketsDetalhados(){
+  rpLoadSheetJS(()=>{
+    const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
+    const msFmt=ms=>ms!==null?Math.round(ms/60000):null;
+    const rows=rpData.map(x=>{
+      const respMs=x.first_response_at?(new Date(x.first_response_at)-new Date(x.created_at)):null;
+      const resMs=x.resolved_at?(new Date(x.resolved_at)-new Date(x.created_at)):null;
+      return {
+        'ID':x.id,
+        'Status':x.status||'',
+        'Substatus':x.sub_status||'',
+        'Abertura':x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'',
+        '1ª Resposta':x.first_response_at?new Date(x.first_response_at).toLocaleString('pt-BR'):'',
+        'Resolução':x.resolved_at?new Date(x.resolved_at).toLocaleString('pt-BR'):'',
+        'Tempo 1ª Resp (min)':msFmt(respMs),
+        'Tempo Resolução (min)':msFmt(resMs),
+        'SLA Resposta':x.sla_response_met===true?'Dentro':x.sla_response_met===false?'Fora':'—',
+        'SLA Resolução':x.sla_resolution_met===true?'Dentro':x.sla_resolution_met===false?'Fora':'—',
+        'Prioridade':x.priority||'',
+        'Responsável':agentMap[x.assigned_to]||'Sem responsável',
+        'Motivo':x.contact_reason||'',
+        'Origem':x.category||'',
+        'Cliente':x.customer||'',
+        'E-mail':x.email||'',
+        'Empresa Cadastrada':x.email&&allCompanies.find(c=>x.email.endsWith('@'+c.domain))?'Sim':'Não',
+        'Placa(s)':(x.plates||[]).join(', ')||'',
+        'Reaberto':x.status==='Reaberto'?'Sim':'Não',
+        'Título':x.title||'',
+      };
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Tickets Detalhados');
+    rpDownloadXlsx(wb,`SuportePro_Tickets_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Exportação concluída!','success');
+  });
+}
+
+function exportResumoDiario(){
+  rpLoadSheetJS(()=>{
+    const days=parseInt($('rp-period')?.value)||30;
+    const daysArr=[];
+    for(let i=days-1;i>=0;i--){
+      const d=new Date(Date.now()-i*86400000);
+      daysArr.push(d.toISOString().slice(0,10));
+    }
+    const statusFinais=['Resolvido','Fechado'];
+    const m={};
+    daysArr.forEach(d=>{m[d]={rec:0,resp:0,res:0,slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0};});
+    rpData.forEach(x=>{
+      const dc=x.created_at?.slice(0,10);
+      const dr=x.resolved_at?.slice(0,10);
+      const dfr=x.first_response_at?.slice(0,10);
+      if(dc&&m[dc]){m[dc].rec++;}
+      if(dfr&&m[dfr])m[dfr].resp++;
+      if(dr&&m[dr])m[dr].res++;
+      const d2=dc||dr;
+      if(d2&&m[d2]){
+        if(x.sla_response_met===true)m[d2].slaROk++;
+        if(x.sla_response_met===false)m[d2].slaRBr++;
+        if(x.sla_resolution_met===true)m[d2].slaResOk++;
+        if(x.sla_resolution_met===false)m[d2].slaResBr++;
+      }
+    });
+    let backlog=rpData.filter(x=>!statusFinais.includes(x.status)).length;
+    const rows=daysArr.reverse().map(d=>({
+      'Data':d,
+      'Recebidos':m[d]?.rec||0,
+      'Respondidos':m[d]?.resp||0,
+      'Resolvidos':m[d]?.res||0,
+      'SLA Resp Dentro':m[d]?.slaROk||0,
+      'SLA Resp Fora':m[d]?.slaRBr||0,
+      'SLA Resol Dentro':m[d]?.slaResOk||0,
+      'SLA Resol Fora':m[d]?.slaResBr||0,
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Resumo Diário');
+    rpDownloadXlsx(wb,`SuportePro_ResumoDiario_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Exportação concluída!','success');
+  });
+}
+
+function exportPerformanceAgente(){
+  rpLoadSheetJS(()=>{
+    const agentMap={};allUsers.forEach(u=>agentMap[u.id]=u.name||u.id.slice(0,8));
+    const statusFinais=['Resolvido','Fechado'];
+    const stats={};
+    allUsers.forEach(u=>{stats[u.id]={name:u.name||u.id.slice(0,8),rec:0,res:0,open:0,respTimes:[],resTimes:[],slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0,reab:0};});
+    rpData.forEach(x=>{
+      const uid=x.assigned_to||'none';
+      if(!stats[uid])stats[uid]={name:agentMap[uid]||'Sem responsável',rec:0,res:0,open:0,respTimes:[],resTimes:[],slaROk:0,slaRBr:0,slaResOk:0,slaResBr:0,reab:0};
+      const ag=stats[uid];ag.rec++;
+      if(statusFinais.includes(x.status))ag.res++;else ag.open++;
+      if(x.first_response_at)ag.respTimes.push((new Date(x.first_response_at)-new Date(x.created_at))/60000);
+      if(x.resolved_at)ag.resTimes.push((new Date(x.resolved_at)-new Date(x.created_at))/60000);
+      if(x.sla_response_met===true)ag.slaROk++;
+      if(x.sla_response_met===false)ag.slaRBr++;
+      if(x.sla_resolution_met===true)ag.slaResOk++;
+      if(x.sla_resolution_met===false)ag.slaResBr++;
+      if(x.status==='Reaberto')ag.reab++;
+    });
+    const avg2=arr=>arr.length?Math.round(arr.reduce((a,b)=>a+b,0)/arr.length):null;
+    const rows=Object.values(stats).filter(a=>a.rec>0).sort((a,b)=>b.res-a.res).map(ag=>({
+      'Agente':ag.name,
+      'Recebidos':ag.rec,
+      'Resolvidos':ag.res,
+      'Em Aberto':ag.open,
+      '% SLA Resposta':rpPct(ag.slaROk,ag.slaROk+ag.slaRBr),
+      '% SLA Resolução':rpPct(ag.slaResOk,ag.slaResOk+ag.slaResBr),
+      'TMA Resposta (min)':avg2(ag.respTimes),
+      'TMA Resolução (min)':avg2(ag.resTimes),
+      'Reaberturas':ag.reab,
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Performance por Agente');
+    rpDownloadXlsx(wb,`SuportePro_Agentes_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('Exportação concluída!','success');
+  });
 }
 
 // ── ADMIN ──
