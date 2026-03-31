@@ -1315,11 +1315,29 @@ async function connectSupabase(){
 
 async function doLogin(){
   const email=$('login-email').value.trim(),pass=$('login-password').value;
-  $('login-err').textContent='';
-  if(!email||!pass){$('login-err').textContent='Preencha e-mail e senha.';return;}
-  const{data,error}=await db.auth.signInWithPassword({email,password:pass});
-  if(error){$('login-err').textContent='E-mail ou senha incorretos.';return;}
-  currentUser=data.user;await afterLogin();
+  const errEl=$('login-err');
+  errEl.textContent='';
+  if(!email||!pass){errEl.textContent='Preencha e-mail e senha.';return;}
+  if(!db){
+    // db ainda não inicializado — tentar criar agora
+    try{
+      db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    }catch(e){
+      errEl.textContent='Erro de conexão. Recarregue a página.';return;
+    }
+  }
+  try{
+    const btn=document.querySelector('#login-screen .btn-primary');
+    if(btn){btn.disabled=true;btn.textContent='Entrando...';}
+    const{data,error}=await db.auth.signInWithPassword({email,password:pass});
+    if(btn){btn.disabled=false;btn.textContent='Entrar';}
+    if(error){errEl.textContent='E-mail ou senha incorretos. ('+error.message+')';return;}
+    currentUser=data.user;await afterLogin();
+  }catch(e){
+    const btn=document.querySelector('#login-screen .btn-primary');
+    if(btn){btn.disabled=false;btn.textContent='Entrar';}
+    errEl.textContent='Erro: '+(e.message||'Tente novamente.');
+  }
 }
 
 async function afterLogin(){
@@ -3158,9 +3176,10 @@ function setView(v){
 // ── BOOT ──
 const SUPABASE_URL='https://crcxezeqbibaleovtrsl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyY3hlemVxYmliYWxlb3Z0cnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NjY3MjIsImV4cCI6MjA5MDE0MjcyMn0.86EfVv_a0m2GPIodNhIh5CgZq4K8HEy2xxpijJt7_8Y';
+// Inicializar db aqui — após as constantes estarem disponíveis
+db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 window.addEventListener('DOMContentLoaded',async()=>{
-  // Conectar direto — credenciais fixas no código
-  db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  // db já inicializado acima
   $('setup-screen').style.display='none';
   $('login-screen').style.display='flex';
   $('app').style.display='none';
