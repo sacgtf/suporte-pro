@@ -283,6 +283,8 @@ label.field-label{display:block;font-size:11px;font-weight:700;color:var(--muted
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users PRIMARY KEY,
   name TEXT, role TEXT DEFAULT 'agent',
+  email TEXT,
+  active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS config_items (
@@ -360,8 +362,11 @@ CREATE POLICY "all" ON notifications FOR ALL USING (true) WITH CHECK (true);
 -- Trigger perfil
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE OR REPLACE FUNCTION handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-BEGIN INSERT INTO public.profiles(id,name,role) VALUES(NEW.id,NEW.email,'agent') ON CONFLICT(id) DO NOTHING; RETURN NEW; END;$$;
+BEGIN INSERT INTO public.profiles(id,name,role,email,active) VALUES(NEW.id,NEW.email,'agent',NEW.email,true) ON CONFLICT(id) DO NOTHING; RETURN NEW; END;$$;
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE PROCEDURE handle_new_user();
+-- Migração (para instalações existentes)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 -- Dados padrao
 INSERT INTO config_items(type,label,color,bg_color,is_default,position) VALUES
 ('status','Novo','#5E6AD2','#5E6AD215',true,1),
@@ -992,14 +997,66 @@ INSERT INTO canned_responses(title,content,category) VALUES
 </div>
 
 <div class="modal-bg" id="modal-edit-user">
-  <div class="modal">
-    <div class="modal-title">Editar Usuario</div>
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">Editar Usuário</div>
     <input type="hidden" id="eu-id"/>
-    <div class="mb-12"><label class="field-label">Nome completo</label><input id="eu-name" class="field" placeholder="Maria Silva"/></div>
-    <div class="mb-12"><label class="field-label">Nova senha <span style="font-weight:400;color:var(--faint)">(deixe em branco para não alterar)</span></label><input id="eu-password" class="field" type="password" placeholder="Mínimo 6 caracteres"/></div>
-    <div class="mb-12"><label class="field-label">Perfil</label><select id="eu-role" class="field"><option value="agent">Agente</option><option value="admin">Admin</option></select></div>
+
+    <!-- E-mail (somente leitura) -->
+    <div class="mb-12">
+      <label class="field-label">E-mail <span style="font-weight:400;color:var(--faint)">(não editável aqui)</span></label>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;color:var(--muted)" id="eu-email-display">—</div>
+      <div style="font-size:10px;color:var(--faint);margin-top:3px">Para alterar o e-mail, acesse o painel Supabase › Authentication.</div>
+    </div>
+
+    <!-- Nome -->
+    <div class="mb-12">
+      <label class="field-label">Nome completo *</label>
+      <input id="eu-name" class="field" placeholder="Maria Silva"/>
+    </div>
+
+    <!-- Senha -->
+    <div class="mb-12">
+      <label class="field-label">Nova senha <span style="font-weight:400;color:var(--faint)">(deixe em branco para não alterar)</span></label>
+      <input id="eu-password" class="field" type="password" placeholder="Mínimo 6 caracteres"/>
+      <div style="font-size:10px;color:var(--faint);margin-top:3px">A alteração de senha de outro usuário exige chave service_role no Supabase.</div>
+    </div>
+
+    <!-- Perfil -->
+    <div class="mb-12">
+      <label class="field-label">Perfil</label>
+      <select id="eu-role" class="field">
+        <option value="agent">Agente</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+
+    <!-- Toggle Ativo/Inativo -->
+    <div class="mb-12" style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:13px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px">Status de Acesso</div>
+          <div style="font-size:11px;color:var(--muted)">Inativar bloqueia o acesso sem excluir o histórico.</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;flex-shrink:0">
+          <div style="position:relative;width:44px;height:24px">
+            <input type="checkbox" id="eu-active" style="opacity:0;width:0;height:0;position:absolute"
+              onchange="rpUpdateToggle(this)"/>
+            <span id="eu-toggle-track" onclick="$('eu-active').click()" style="position:absolute;inset:0;border-radius:12px;cursor:pointer;transition:background .2s;background:var(--red)"></span>
+            <span id="eu-toggle-thumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;pointer-events:none"></span>
+          </div>
+          <span id="eu-active-label" style="font-size:12px;font-weight:700">Perfil ativo</span>
+        </label>
+      </div>
+      <div id="eu-active-warn" style="display:none;margin-top:10px;padding:8px 10px;background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.25);border-radius:6px;font-size:11px;color:var(--orange)">
+        ⚠️ Você não pode inativar seu próprio perfil.
+      </div>
+    </div>
+
     <div id="eu-err" class="overlay-err"></div>
-    <div class="modal-actions"><button class="btn btn-secondary btn-sm" onclick="closeModal('modal-edit-user')">Cancelar</button><button class="btn btn-primary btn-sm" onclick="saveEditUser()">Salvar</button></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-edit-user')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveEditUser()">Salvar Alterações</button>
+    </div>
   </div>
 </div>
 
@@ -1128,7 +1185,15 @@ async function doLogin(){
 
 async function afterLogin(){
   const{data:p}=await db.from('profiles').select('*').eq('id',currentUser.id).single();
-  currentProfile=p||{role:'agent',name:currentUser.email};
+  currentProfile=p||{role:'agent',name:currentUser.email,active:true};
+
+  // Bloquear acesso se perfil inativo
+  if(currentProfile.active===false){
+    await db.auth.signOut();
+    $('login-err').textContent='Seu acesso foi desativado. Contate o administrador.';
+    $('login-screen').style.display='flex';
+    return;
+  }
   // Mostrar app imediatamente, dados carregam em paralelo
   $('login-screen').style.display='none';$('app').style.display='flex';
   $('header-username').textContent=currentProfile.name||currentUser.email;
@@ -2731,32 +2796,74 @@ async function removeCompany(id){
 
 async function loadUsers(){
   const{data}=await db.from('profiles').select('*').order('created_at');
-  $('users-list').innerHTML=(data||[]).map(u=>`<div class="user-row">${mkA(u.name||'U',30)}<div class="user-info"><div class="user-name">${u.name||'(sem nome)'}</div><div class="user-email">${u.id.slice(0,20)}...</div></div><span class="user-role ${u.role==='admin'?'role-admin':'role-agent'}">${u.role==='admin'?'Admin':'Agente'}</span><button class="btn btn-secondary btn-xs" onclick="openEditUser('${u.id}','${(u.name||'').replace(/'/g,"\\'")}','${u.role||'agent'}')">Editar</button>${u.id!==currentUser?.id?`<button class="btn btn-danger btn-xs" onclick="removeUser('${u.id}')">Remover</button>`:'<span style="font-size:11px;color:var(--faint)">(voce)</span>'}</div>`).join('')||'<div style="color:var(--faint);text-align:center;padding:20px;font-size:13px">Nenhum usuario.</div>';
+  const users=data||[];
+  if(!users.length){$('users-list').innerHTML='<div style="color:var(--faint);text-align:center;padding:20px;font-size:13px">Nenhum usuario.</div>';return;}
+  $('users-list').innerHTML=users.map(u=>{
+    const isInactive=u.active===false;
+    const roleLabel=u.role==='admin'?'Admin':'Agente';
+    const roleClass=u.role==='admin'?'role-admin':'role-agent';
+    const isSelf=u.id===currentUser?.id;
+    return `<div class="user-row" style="${isInactive?'opacity:.55;':''}">
+      ${mkA(u.name||'U',30)}
+      <div class="user-info">
+        <div class="user-name" style="${isInactive?'text-decoration:line-through;color:var(--muted);':''}">
+          ${u.name||'(sem nome)'}
+          ${isInactive?'<span style="font-size:9px;background:rgba(255,59,48,.15);color:var(--red);padding:1px 6px;border-radius:4px;font-weight:700;margin-left:6px;vertical-align:middle">INATIVO</span>':''}
+        </div>
+        <div class="user-email">${u.email||u.id.slice(0,28)+'...'}</div>
+      </div>
+      <span class="user-role ${roleClass}">${roleLabel}</span>
+      <button class="btn btn-secondary btn-xs" onclick="openEditUser(${JSON.stringify(JSON.stringify(u))})">Editar</button>
+      ${!isSelf?`<button class="btn btn-danger btn-xs" onclick="removeUser('${u.id}')">Remover</button>`:'<span style="font-size:11px;color:var(--faint)">(voce)</span>'}
+    </div>`;
+  }).join('');
 }
 
-function openEditUser(id,name,role){
-  $('eu-id').value=id;
-  $('eu-name').value=name;
-  $('eu-role').value=role;
+function rpUpdateToggle(chk){
+  const on=chk.checked;
+  const track=$('eu-toggle-track'),thumb=$('eu-toggle-thumb'),label=$('eu-active-label');
+  if(!track)return;
+  track.style.background=on?'var(--green)':'var(--red)';
+  thumb.style.transform=on?'translateX(20px)':'translateX(0)';
+  label.textContent=on?'Perfil ativo':'Perfil inativo';
+  label.style.color=on?'var(--green)':'var(--red)';
+}
+
+function openEditUser(userJson){
+  const u=JSON.parse(userJson);
+  $('eu-id').value=u.id;
+  $('eu-name').value=u.name||'';
+  $('eu-email-display').textContent=u.email||u.id.slice(0,28)+'...';
+  $('eu-role').value=u.role||'agent';
   $('eu-password').value='';
+  const isActive=u.active!==false;
+  $('eu-active').checked=isActive;
+  rpUpdateToggle($('eu-active'));
+  $('eu-active-warn').style.display=u.id===currentUser?.id?'block':'none';
   $('eu-err').textContent='';
   openModal('modal-edit-user');
 }
 
 async function saveEditUser(){
-  const id=$('eu-id').value,name=$('eu-name').value.trim(),role=$('eu-role').value,pass=$('eu-password').value;
+  const id=$('eu-id').value;
+  const name=$('eu-name').value.trim();
+  const role=$('eu-role').value;
+  const pass=$('eu-password').value;
+  const active=$('eu-active').checked;
   $('eu-err').textContent='';
   if(!name){$('eu-err').textContent='Preencha o nome.';return;}
   if(pass&&pass.length<6){$('eu-err').textContent='Senha mínima de 6 caracteres.';return;}
-  const{error}=await db.from('profiles').update({name,role}).eq('id',id);
+  if(id===currentUser?.id&&!active){$('eu-err').textContent='Você não pode inativar seu próprio perfil.';return;}
+  const{error}=await db.from('profiles').update({name,role,active}).eq('id',id);
   if(error){$('eu-err').textContent='Erro: '+error.message;return;}
   if(pass){
-    // Atualiza a senha via admin API (requer service_role) — apenas atualiza profile por ora
-    showToast('Dados salvos. Senha não alterada (requer permissão admin Supabase).','warn');
+    showToast('Dados salvos. Para alterar a senha, use o painel Supabase > Authentication.','warn');
   } else {
-    showToast('Usuario atualizado!','success');
+    const msg=active?'Usuário atualizado com sucesso!':'Usuário inativado — acesso bloqueado no próximo login.';
+    showToast(msg,active?'success':'warn');
   }
-  closeModal('modal-edit-user');loadUsers();
+  closeModal('modal-edit-user');
+  loadUsers();
 }
 
 async function createUser(){
@@ -2764,8 +2871,12 @@ async function createUser(){
   $('mu-err').textContent='';
   if(!name||!email||!pass){$('mu-err').textContent='Preencha todos os campos.';return;}
   if(pass.length<6){$('mu-err').textContent='Senha minima de 6 caracteres.';return;}
-  const{error}=await db.auth.signUp({email,password:pass,options:{data:{name,role}}});
+  const{data,error}=await db.auth.signUp({email,password:pass,options:{data:{name,role}}});
   if(error){$('mu-err').textContent='Erro: '+error.message;return;}
+  // Atualizar profile com nome, role e email corretos
+  if(data?.user?.id){
+    await db.from('profiles').upsert({id:data.user.id,name,role,email,active:true});
+  }
   closeModal('modal-user');showToast(`Usuario ${name} criado!`,'success');setTimeout(()=>loadUsers(),800);
 }
 
